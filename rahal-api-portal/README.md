@@ -6,7 +6,53 @@
 
 ---
 
-## Quick Deploy to Vercel (3 methods)
+## Quick Deploy to Render (recommended alternative)
+
+### Method A — Render Dashboard + GitHub (no CLI, ~3 min)
+
+1. Push this project to a **private GitHub repo**:
+   ```bash
+   git init
+   git add .
+   git commit -m "RAHAL API Portal v2.6"
+   git remote add origin https://github.com/YOUR_ORG/rahal-api-portal.git
+   git push -u origin main
+   ```
+2. Go to **https://dashboard.render.com/select-repo?type=web**
+3. Connect the repo. Render auto-detects `render.yaml` in this project and
+   pre-fills everything:
+   - **Runtime:** Node
+   - **Build Command:** `npm install && npm run build`
+   - **Start Command:** `npm run start`
+   - **Plan:** Free (or Starter for no cold-starts)
+4. Click **Create Web Service**. Render builds and deploys automatically.
+5. You'll get a URL like `https://rahal-api-portal.onrender.com`
+
+### Method B — Render Blueprint (one-click via render.yaml)
+
+This repo already includes `render.yaml`. In the Render dashboard:
+1. **New → Blueprint**
+2. Point it at your GitHub repo — Render reads `render.yaml` and provisions
+   the service with zero manual config.
+
+### Method C — Render CLI
+
+```bash
+npm i -g @render/cli   # if available in your org, else use the dashboard
+render deploy
+```
+
+> **Note on the free plan:** Render's free web services spin down after 15
+> minutes of inactivity and take ~30–50s to cold-start on the next request.
+> Since this app uses an **in-memory mock store**, a cold start also resets
+> all bookings/sessions/tokens created during testing. For persistent state
+> in production, wire `lib/mockStore.js` to Redis (Render offers managed
+> Redis) or a real database, and upgrade to the Starter plan to avoid
+> spin-down entirely.
+
+---
+
+## Quick Deploy to Vercel (alternative — serverless, no cold-start resets to worry about differently)
 
 ### Method A — Vercel CLI (recommended, ~2 min)
 
