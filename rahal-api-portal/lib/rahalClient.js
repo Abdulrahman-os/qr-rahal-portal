@@ -13,7 +13,7 @@
  * Selected via RAHAL_AUDIENCE env var: 'stafftravel' | 'active'
  * ─────────────────────────────────────────────────────────────────────────
  */
-const { buildBasicAuthHeader, encryptPayload, decryptPayload, signPayload, verifySignature } = require('./payloadCrypto');
+const { buildBasicAuthHeader, encryptPayload, decryptPayload, signPayload, verifySignature } = require('./security/payloadCrypto');
 
 const BASE_URLS = {
   stafftravel: 'https://stafftravel.qatarairways.com.qa/api/v1',
