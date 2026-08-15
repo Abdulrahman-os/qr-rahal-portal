@@ -6,7 +6,219 @@
 
 ---
 
-## Quick Deploy to Render (recommended alternative)
+## Production Authentication & Provisioning Architecture
+
+This app now includes a **real** (not simulated) provisioning + auth
+security layer under `lib/security/` and `pages/api/admin/`,
+`pages/api/auth/activate.js`, `pages/api/auth/token/`. It replaces
+password-checking-against-a-hardcoded-object with bcrypt + RS256 JWTs +
+revocable refresh tokens. Read this section before deploying for real use.
+
+### The pre-registration problem this solves
+
+The public login form only ever *authenticates* — it should never be able
+to *create* an account. Staff accounts must exist, in `PENDING_ACTIVATION`
+status with **no password set**, before anyone can log in. That's what
+provisioning does.
+
+### End-to-end flow
+
+```
+┌─────────────┐     1. POST /api/admin/staff/provision      ┌──────────────┐
+│  HRIS / IT   │ ───(x-internal-api-key header)────────────▶ │  This app    │
+│  admin tool  │                                              │  (auth svc)  │
+└─────────────┘ ◀──── { activationLink } ────────────────────└──────────────┘
+                                                                       │
+                       2. HRIS emails activationLink to staff's       │
+                          HR-verified corporate email (out of band)   │
+                                                                       ▼
+┌─────────────┐     3. POST /api/auth/activate               ┌──────────────┐
+│    Staff     │ ───(token + DOB + passport + new password)─▶│  This app    │
+│    member    │ ◀──── account now ACTIVE ────────────────────└──────────────┘
+└─────────────┘
+       │
+       │  4. POST /api/auth/login/qr-staff-v2  (staffNumber + password + CAPTCHA)
+       │  5. POST /api/auth/otp/send            (OTP to verified mobile/email)
+       │  6. POST /api/auth/otp/verify-v2       (OTP + CAPTCHA)
+       ▼
+   { accessToken (RS256 JWT, 15 min), refreshToken (opaque, 7 days) }
+       │
+       │  7. POST /api/auth/token/refresh   — silently renew access token
+       │  8. POST /api/auth/token/revoke    — logout, revokes refresh token
+       ▼
+   Protected endpoints via  Authorization: Bearer <accessToken>
+```
+
+### Provisioning endpoint — how it's authorized
+
+`POST /api/admin/staff/provision` requires a header:
+```
+x-internal-api-key: <INTERNAL_PROVISIONING_API_KEY>
+```
+This key belongs to your **HRIS integration or internal admin tool** —
+never the public frontend, never given to staff. See
+`lib/security/adminAuth.js` for the full trust-boundary rationale and
+production hardening notes (mTLS, network isolation, audit logging).
+
+Example call:
+```bash
+curl -X POST https://your-deployment/api/admin/staff/provision \
+  -H "Content-Type: application/json" \
+  -H "x-internal-api-key: $INTERNAL_PROVISIONING_API_KEY" \
+  -d '{
+    "staffNumber": "778899",
+    "staffType": "FORMER_STAFF",
+    "firstName": "Layla",
+    "lastName": "Hassan",
+    "email": "layla.hassan@qatarairways.com.qa",
+    "mobile": "+97455512345",
+    "dateOfBirth": "1990-04-12",
+    "passportNumber": "P99988877",
+    "createdBy": "hris-sync-service"
+  }'
+```
+Response includes `activationLink` — your integration is responsible for
+delivering that to the staff member via a verified channel (never return
+it to an unauthenticated caller in a real deployment).
+
+### Confirmed base URLs
+
+```
+Former Staff / QAA-QEEL / OAL:  https://stafftravel.qatarairways.com.qa/api/v1
+Active QR Staff:                https://rahal.qatarairways.com.qa/api/v1
+```
+Set via `RAHAL_AUDIENCE=stafftravel` or `RAHAL_AUDIENCE=active` in env.
+
+### IT's stated security requirement — 4 layers on every backend call
+
+> "Request payloads need to be signed and encrypted, in addition to BA
+> and Transport Layer Security (TLS). You also need to decrypt and then
+> validate the signatures of any responses that access the payload."
+
+Implemented in `lib/security/payloadCrypto.js` + `lib/rahalClient.js`:
+
+| Layer | What | Where |
+|---|---|---|
+| 1. TLS | `https://` URLs, enforced by Node's `fetch` | automatic |
+| 2. BA | `Authorization: Basic base64(clientId:clientSecret)` | `buildBasicAuthHeader()` |
+| 3. Encryption | Hybrid AES-256-GCM (payload) + RSA-OAEP (key wrap) | `encryptPayload()` / `decryptPayload()` |
+| 4. Signing | RSA-SHA256 over canonicalized plaintext | `signPayload()` / `verifySignature()` |
+
+**`lib/rahalClient.js`** is the single chokepoint for all real-backend
+calls — every route should go through `callRahal(path, method, body)`
+rather than calling `fetch` directly, so this pipeline can't be
+accidentally bypassed in a new endpoint. See
+`pages/api/flights/search-v2-real.js` for a fully worked example of
+migrating a route from the mock implementation to the real client.
+
+**Required env vars** (see `.env.example` for full generation
+instructions): `RAHAL_BA_CLIENT_ID`, `RAHAL_BA_CLIENT_SECRET`,
+`RAHAL_ENCRYPTION_PUBLIC_KEY`, `CLIENT_ENCRYPTION_PRIVATE_KEY`,
+`RAHAL_SIGNING_PUBLIC_KEY`, `CLIENT_SIGNING_PRIVATE_KEY`.
+
+Two keypairs are generated **by us**, locally, and only the public
+halves ever leave our environment (sent to IT during onboarding):
+`client_encryption_*` and `client_signing_*`. The other two env vars
+(`RAHAL_ENCRYPTION_PUBLIC_KEY`, `RAHAL_SIGNING_PUBLIC_KEY`) are keys
+**IT provides to us**. Never put a private key in a request to IT or
+accept one from them over email/Slack — only public keys should ever
+cross that boundary.
+
+### Publishing your public keys (safe) vs. the private key mistake to avoid
+
+**Never paste a private key anywhere outside your own deploy
+environment — not into a chat, not into a support ticket, not into a
+portal form.** The only thing that should ever be shared with a
+counterparty is a public key.
+
+To publish your service's public keys for a counterparty to fetch:
+
+```bash
+# 1. Generate BOTH keypairs locally (never on a shared/AI system)
+openssl genrsa -out client_signing_private.pem 2048
+openssl rsa -in client_signing_private.pem -pubout -out client_signing_public.pem
+
+openssl genrsa -out client_encryption_private.pem 2048
+openssl rsa -in client_encryption_private.pem -pubout -out client_encryption_public.pem
+
+# 2. In Render Dashboard → your service → Environment, set:
+#      CLIENT_SIGNING_PRIVATE_KEY      = contents of client_signing_private.pem
+#      CLIENT_SIGNING_PUBLIC_KEY       = contents of client_signing_public.pem
+#      CLIENT_ENCRYPTION_PRIVATE_KEY   = contents of client_encryption_private.pem
+#      CLIENT_ENCRYPTION_PUBLIC_KEY    = contents of client_encryption_public.pem
+# All four are "secret" env vars in Render's dashboard by default —
+# that's fine; the PUBLIC ones just also get served back out over the
+# endpoint below, which is the whole point of them being public.
+
+# 3. Delete the local .pem files after copying into Render, or store
+#    them in a proper secrets manager if you need a backup — don't
+#    leave private key files sitting in a project folder or repo.
+
+# 4. Redeploy. Your public keys are now fetchable at:
+#      https://qr-rahal-portal.onrender.com/api/security/public-keys
+```
+
+Give that URL to your real IT/security contact through your
+organization's actual verified channel so they can fetch and pin your
+public keys on their end. Ask them for the equivalent — either a
+matching published endpoint on their side, or their standard signed
+key-delivery process — for `RAHAL_SIGNING_PUBLIC_KEY` and
+`RAHAL_ENCRYPTION_PUBLIC_KEY`.
+
+
+
+### Open questions for IT (not yet confirmed)
+
+The response envelope field names, the exact canonicalization method
+RAHAL expects for signing, whether error responses (4xx/5xx) are also
+encrypted, and the true per-endpoint request/response schemas are all
+**assumed** in the current code based on our existing mock contract.
+`rahalClient.js` and the worked example route both have inline `TODO`
+comments flagging every assumption that needs confirming against
+RAHAL's actual API spec once IT shares it.
+
+---
+
+
+
+See `.env.example`. At minimum for production:
+- `INTERNAL_PROVISIONING_API_KEY` — generate with `openssl rand -base64 32`
+- `JWT_PRIVATE_KEY` / `JWT_PUBLIC_KEY` — generate with `openssl genrsa` /
+  `openssl rsa -pubout` (see comments in `lib/security/jwt.js`)
+
+**Without these set, JWT keys regenerate on every server restart** —
+every previously issued token becomes invalid. Fine for local dev only.
+
+### ⚠️ Storage is still in-memory — read before going live
+
+`lib/security/storage.js` currently backs everything (staff accounts,
+activation tokens, refresh tokens) with in-memory `Map`s. **All
+provisioned accounts are lost on every redeploy or cold start.** This
+was written against a small adapter interface specifically so it's a
+single-file swap to a real database — the file has a suggested Postgres
+schema in its header comment. Do not provision real staff accounts
+against this app until that swap is done.
+
+### What changed vs. the earlier demo version
+
+| Old (demo) | New (production-track) |
+|---|---|
+| `VALID_STAFF` hardcoded object | Real accounts via `lib/security/storage.js`, created only through provisioning |
+| Plaintext password comparison | `bcrypt.compare` via `lib/security/password.js` |
+| Random string "JWT" stored in a Map | Real RS256-signed JWT via `lib/security/jwt.js`, independently verifiable |
+| No account states | `PENDING_ACTIVATION → ACTIVE → SUSPENDED/DISABLED` |
+| No lockout | 5 failed attempts → 15 min lockout |
+| No rate limiting | Per-IP rate limits on login/activate/provision |
+| Login could implicitly "create" behavior | Login can never create an account — only `/api/admin/staff/provision` can |
+
+The original `pages/api/auth/login/qr-staff.js` and
+`pages/api/auth/otp/verify.js` demo files are left in place for
+reference/comparison but should be deleted (or the routes disabled)
+before production use — use the `-v2` versions.
+
+---
+
+
 
 ### Method A — Render Dashboard + GitHub (no CLI, ~3 min)
 

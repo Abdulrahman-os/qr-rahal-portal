@@ -4,6 +4,7 @@ services:
     runtime: node
     plan: free
     region: frankfurt
+    rootDir: rahal-api-portal
     buildCommand: npm install && npm run build
     startCommand: npm run start
     envVars:
