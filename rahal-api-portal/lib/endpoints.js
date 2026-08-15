@@ -103,9 +103,74 @@ export const ENDPOINTS = [
     example_response:{sessionToken:null,resetToken:"reset_tok_xyz",nextStep:"PASSWORD_CHANGE_REQUIRED"}
   },
   {
+    method:"POST", path:"/api/auth/token/refresh", tag:"Authentication",
+    summary:"Refresh access token",
+    desc:"Exchanges a valid, unrevoked refresh token for a new short-lived access token, without requiring password + OTP again. Refresh tokens rotate on every use — the old one is revoked and a new one issued in the same response.",
+    auth:false, params:[],
+    body:{refreshToken:"a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6A7B8C9D0-E1F2"},
+    fields:[
+      {name:"refreshToken",type:"string",required:true,desc:"Opaque refresh token issued at login (7-day TTL, rotates on each use)"},
+    ],
+    example_response:{accessToken:"eyJhbGciOiJSUzI1NiJ9...",refreshToken:"<new rotated token>",tokenType:"Bearer",expiresInSeconds:900}
+  },
+  {
+    method:"POST", path:"/api/auth/token/revoke", tag:"Authentication",
+    summary:"Revoke refresh token (production logout)",
+    desc:"Revokes a refresh token server-side so it can no longer be exchanged for new access tokens. The already-issued access token remains valid until its own short expiry (max 15 min) — the accepted tradeoff of short-lived-access + revocable-refresh token design.",
+    auth:false, params:[],
+    body:{refreshToken:"a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6A7B8C9D0-E1F2"},
+    fields:[
+      {name:"refreshToken",type:"string",required:true,desc:"The refresh token to revoke"},
+    ],
+    example_response:{message:"Logged out. Refresh token revoked."}
+  },
+  {
+    method:"POST", path:"/api/auth/activate", tag:"Authentication",
+    summary:"Activate account & set first password",
+    desc:"A staff member's first-ever interaction, reached via the activation link sent after provisioning. Re-verifies identity via date of birth + passport (defense in depth, proving possession of the link isn't enough on its own), then lets the staff member set their own password for the first time.",
+    auth:false, params:[],
+    body:{token:"XcJ9k2mQ7pR4vT8wY1zA3bC5dE6fG0hI-J2kL4mN6oP8qR0s",dateOfBirth:"1990-04-12",passportNumber:"P99988877",newPassword:"Str0ng!Pass#2026",confirmPassword:"Str0ng!Pass#2026"},
+    fields:[
+      {name:"token",type:"string",required:true,desc:"Raw activation token from the link (never the hash)"},
+      {name:"dateOfBirth",type:"date",required:true,desc:"ISO 8601 date (YYYY-MM-DD), must match HR record"},
+      {name:"passportNumber",type:"string",required:true,desc:"Must match HR record"},
+      {name:"newPassword",type:"password",required:true,desc:"Min 10 chars: upper, lower, digit, special char"},
+      {name:"confirmPassword",type:"password",required:true,desc:"Must match newPassword"},
+    ],
+    example_response:{message:"Account activated successfully. You may now log in.",staffNumber:"778899"}
+  },
+
+  /* ─── ADMIN / PROVISIONING (separate trust boundary — see lib/security/adminAuth.js) ─── */
+  {
+    method:"POST", path:"/api/admin/staff/provision", tag:"Authentication",
+    summary:"Provision new staff account (admin/HRIS only) ★",
+    desc:"Creates a staff account BEFORE any login is possible — PENDING_ACTIVATION status, no password set. Callable only by an authorized internal system (HRIS feed, admin console) via the x-internal-api-key header, never by the public frontend. Field naming follows common HR-system conventions (IATA airline staff-travel programs typically source this from SAP SuccessFactors / Workday feeds).",
+    auth:false, star:true,
+    params:[{name:"x-internal-api-key",in:"header",required:true,type:"string",desc:"Static service credential for the HRIS/admin integration — see lib/security/adminAuth.js"}],
+    body:{
+      staffNumber:"778899", staffType:"FORMER_STAFF",
+      firstName:"Layla", lastName:"Hassan",
+      email:"layla.hassan@qatarairways.com.qa", mobile:"+97455512345",
+      dateOfBirth:"1990-04-12", passportNumber:"P99988877",
+      createdBy:"hris-sync-service"
+    },
+    fields:[
+      {name:"staffNumber",type:"string",required:true,desc:"Alphanumeric, 4-12 chars"},
+      {name:"staffType",type:"select",options:["FORMER_STAFF","QAA_QEEL"],required:true,desc:"Staff category"},
+      {name:"firstName",type:"string",required:true,desc:"Legal first name, as on passport"},
+      {name:"lastName",type:"string",required:true,desc:"Legal last name, as on passport"},
+      {name:"email",type:"email",required:true,desc:"HR-verified corporate or personal email"},
+      {name:"mobile",type:"string",required:false,desc:"E.164 format e.g. +97455512345"},
+      {name:"dateOfBirth",type:"date",required:true,desc:"ISO 8601 date (YYYY-MM-DD)"},
+      {name:"passportNumber",type:"string",required:true,desc:"Used later as an identity-verification challenge"},
+      {name:"createdBy",type:"string",required:true,desc:"Identity of the calling system/admin, for audit trail"},
+    ],
+    example_response:{staffNumber:"778899",status:"PENDING_ACTIVATION",activationLink:"https://stafftravel.qatarairways.com.qa/activate?token=...",activationTokenExpiresAt:"2026-08-18T12:00:00Z",message:"Staff account provisioned. Deliver the activation link via a verified channel."}
+  },
+  {
     method:"POST", path:"/api/auth/logout", tag:"Authentication",
-    summary:"Logout and invalidate session",
-    desc:"Invalidates the current JWT bearer token server-side.",
+    summary:"Logout and invalidate session (legacy demo route)",
+    desc:"Invalidates the current in-memory session token server-side, based on the Authorization header. Superseded by /api/auth/token/revoke for the production-track flow (RFC 7009-style, token passed in body) — kept here for the original mock login flow.",
     auth:true, params:[], body:null, fields:[],
     example_response:{message:"Logged out successfully."}
   },
