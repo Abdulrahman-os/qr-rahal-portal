@@ -2,8 +2,7 @@
  * DEMO-ONLY KEYS — for proving the sign/encrypt/verify pipeline works,
  * end-to-end, without touching any real backend or requiring you to
  * configure real credentials first.
- *
- * These are NOT your production CLIENT_*/RAHAL_* keys from
+ * These are NOT your production CLIENT_ and RAHAL_ prefixed keys from
  * payloadCrypto.js. Two separate ephemeral keypairs are generated here
  * at server boot — one representing "us", one representing a "mock
  * RAHAL counterparty" — so the demo can exercise a full two-party
