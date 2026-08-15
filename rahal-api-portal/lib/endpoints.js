@@ -2,7 +2,7 @@ export const TAGS = [
   "Authentication","CAPTCHA","Password","Profile",
   "Entitlements","Flight Search","Booking",
   "My Bookings","Listing (Standby)","Change Booking",
-  "Refund","Print & Itinerary"
+  "Refund","Print & Itinerary","Security Pipeline Demo"
 ];
 
 export const ENDPOINTS = [
@@ -467,5 +467,30 @@ export const ENDPOINTS = [
       {name:"emailOverride",type:"email",required:false,desc:"Optional alternative email"},
     ],
     example_response:{message:"E-ticket resent to alt@example.com.",sentAt:"2026-08-08T14:05:00Z"}
+  },
+
+  /* ─── REAL-BACKEND-SHAPED TEMPLATE — not wired to real QR systems ─── */
+  {
+    method:"POST", path:"/api/flights/search-v2-real", tag:"Flight Search", backend:"real-shaped",
+    summary:"Flight search (real-backend-shaped template, inactive)",
+    desc:"NOT connected to any real Qatar Airways system. This is a template showing how a route would call the real RAHAL backend via lib/rahalClient.js once IT provides real credentials and API documentation — currently calling it will fail with missing-credential errors, by design (see lib/security/payloadCrypto.js requireEnv). Not linked from any other part of this UI's normal flow.",
+    auth:true, params:[], body:{tripType:"ONE_WAY",origin:"DOH",destination:"LHR",departureDate:"2026-09-15",ticketType:"ID90"}, fields:[],
+    example_response:{code:"RAHAL_BACKEND_UNREACHABLE", message:"Missing required env var RAHAL_BA_CLIENT_ID — not yet configured."}
+  },
+
+  /* ─── SECURITY PIPELINE DEMO — self-contained, never touches a real backend ─── */
+  {
+    method:"GET", path:"/api/demo/pipeline-test", tag:"Security Pipeline Demo", backend:"demo-pipeline",
+    summary:"Run full sign→encrypt→send→decrypt→verify pipeline ★",
+    desc:"Executes the ENTIRE payload security pipeline for real against a local mock counterparty (never a real QR system): signs a sample request, encrypts it, sends it over HTTP to /api/mock-rahal-backend/flights/search, receives a real signed+encrypted response, decrypts it, verifies the signature, and proves tamper-detection works. Returns a full step-by-step trace so you can see every stage execute rather than take it on faith.",
+    auth:false, params:[], body:null, fields:[],
+    example_response:{summary:"✅ Full pipeline succeeded...", finalDecryptedPayload:{searchId:"srch_demo_abc123", outboundOptions:[{flightNumber:"QR007"}]}, trace:[{step:"1_plaintext_request"},{step:"2_signed"},{step:"3_encrypted"},{step:"4_sending"},{step:"5_decrypted"},{step:"6_signature_verified",valid:true},{step:"7_tamper_detection_proof",valid:false}]}
+  },
+  {
+    method:"POST", path:"/api/mock-rahal-backend/flights/search", tag:"Security Pipeline Demo", backend:"mock-counterparty",
+    summary:"Mock RAHAL counterparty (local only, not a real backend)",
+    desc:"Plays the RAHAL side of the exchange entirely within this deployment. Decrypts an incoming signed+encrypted envelope, verifies the sender's signature, and returns its own signed+encrypted response. Called by the pipeline-test route above — not meant to be hit directly, but callable to inspect the envelope format.",
+    auth:false, params:[], body:{encryptedKey:"<base64>", iv:"<base64>", authTag:"<base64>", ciphertext:"<base64>", signature:"<base64>"}, fields:[],
+    example_response:{encryptedKey:"<base64>", iv:"<base64>", authTag:"<base64>", ciphertext:"<base64>", signature:"<base64>"}
   },
 ];
