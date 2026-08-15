@@ -10,7 +10,7 @@
  * This calls itself over HTTP (same deployment, different route) using
  * the exact same crypto operations lib/security/payloadCrypto.js uses
  * for the real backend — just with demo keys standing in for the real
- * CLIENT_*/RAHAL_* production keys. Swapping this from demo keys to
+ * CLIENT_ and RAHAL_ prefixed production keys. Swapping this from demo keys to
  * real ones later is exactly the difference between this route and
  * pages/api/flights/search-v2-real.js.
  * ─────────────────────────────────────────────────────────────────────────
