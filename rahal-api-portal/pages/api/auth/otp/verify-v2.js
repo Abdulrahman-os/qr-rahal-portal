@@ -19,6 +19,7 @@ const storage = require('../../../../lib/security/storage');
 const { validateCaptcha, getStore } = require('../../../../lib/mockStore');
 const { signAccessToken, REFRESH_TOKEN_TTL_SECONDS } = require('../../../../lib/security/jwt');
 const { generateOpaqueToken } = require('../../../../lib/security/tokens');
+const { ROLES, scopesForRole } = require('../../../../lib/security/roles');
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ code: 'METHOD_NOT_ALLOWED', message: 'Use POST' });
@@ -42,10 +43,18 @@ export default async function handler(req, res) {
   const account = await storage.getStaffAccount(session.staffNumber);
   const jti = crypto.randomUUID(); // unique token ID — useful for future per-token revocation/audit
 
+  // All QR Staff (Former Staff / QAA-QEEL) get the STAFF role — OAL
+  // gets a narrower role via a separate login route (login/oal.js),
+  // not this one, since OAL never goes through OTP.
+  const role = ROLES.STAFF;
+  const scopes = scopesForRole(role);
+
   const accessToken = signAccessToken({
     sub: session.staffNumber,
     staffType: session.staffType,
     name: session.name,
+    role,
+    scopes,
     jti,
   });
 
@@ -66,5 +75,7 @@ export default async function handler(req, res) {
     staffNumber: session.staffNumber,
     staffType: session.staffType,
     displayName: session.name,
+    role,
+    scopes,
   });
 }
