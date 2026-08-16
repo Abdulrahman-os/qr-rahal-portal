@@ -449,12 +449,24 @@ export default function Home() {
           }
 
           {/* Footer */}
-          <div style={{ marginTop:28, paddingTop:14, borderTop:'1px solid #1F2A3D', display:'flex', justifyContent:'space-between', fontSize:10.5, color:'#6B7A99' }}/>
-            <span>© 2022–2026 Qatar Airways. All Rights Reserved. Confidential — Internal Use Only.</span>
-            <span style={{color:'#C8A96E'}}>RAHAL v2.6 · {ENDPOINTS.length} Live Endpoints</span>
-          </div>
+<div style={{
+  marginTop:28,
+  paddingTop:14,
+  borderTop:'1px solid #1F2A3D',
+  display:'flex',
+  justifyContent:'space-between',
+  fontSize:10.5,
+  color:'#6B7A99'
+}}>
+  <span>
+    © 2022–2026 Qatar Airways. All Rights Reserved. Confidential — Internal Use Only.
+  </span>
+  <span style={{color:'#C8A96E'}}>
+    RAHAL v2.6 · {ENDPOINTS.length} Live Endpoints
+  </span>
+</div>
         </main>
       </div>
-    </div>
+    </>
   );
 }
