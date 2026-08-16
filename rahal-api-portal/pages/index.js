@@ -38,6 +38,21 @@ function StatusBadge({ code }) {
   );
 }
 
+const BACKEND_STYLE = {
+  'mock':             { label:'MOCK DATA',       bg:'#0D2035', color:'#4A9EFF', border:'#1A3A5C', title:'Backed by an in-memory mock store. No real Qatar Airways system involved.' },
+  'real-shaped':       { label:'REAL-SHAPED · INACTIVE', bg:'#2A1A00', color:'#F0A030', border:'#4A3000', title:'Shaped to call the real RAHAL backend via lib/rahalClient.js, but not connected — no real credentials configured, and not wired into normal app flow.' },
+  'demo-pipeline':     { label:'LIVE DEMO',       bg:'#0A1A00', color:'#6EE880', border:'#1A5A00', title:'Actually executes the sign/encrypt/verify pipeline for real, against a local mock counterparty — no real QR system involved.' },
+  'mock-counterparty': { label:'LOCAL MOCK ONLY', bg:'#1A0D30', color:'#C89FFF', border:'#3A1A5C', title:'Stands in for RAHAL entirely within this deployment. Not a real backend.' },
+};
+function BackendBadge({ backend = 'mock' }) {
+  const s = BACKEND_STYLE[backend] || BACKEND_STYLE.mock;
+  return (
+    <span title={s.title} style={{ fontSize:9, color:s.color, background:s.bg, border:`1px solid ${s.border}`, borderRadius:3, padding:'1px 6px', flexShrink:0, letterSpacing:.3, cursor:'help' }}>
+      {s.label}
+    </span>
+  );
+}
+
 function JsonView({ data }) {
   const str = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
   return (
@@ -69,7 +84,6 @@ function EndpointCard({ ep, token, setToken }) {
   const [response, setResponse] = useState(null);
   const [captchaImg, setCaptchaImg] = useState(null);
   const [captchaToken, setCaptchaToken] = useState('');
-  const [devOtp, setDevOtp]     = useState('');
   const responseRef = useRef(null);
 
   const needsCaptcha = ep.fields?.some(f => f.name === 'captchaCode');
@@ -142,8 +156,6 @@ function EndpointCard({ ep, token, setToken }) {
 
       // Auto-store token if login response
       if (data?.accessToken && !ep.auth) setToken(data.accessToken);
-      // Store OTP for dev
-      if (data?._dev_otp) setDevOtp(data._dev_otp);
       // Auto-fill captchaToken from generate
       if (data?.captchaToken) { setCaptchaImg(data.imageBase64); setCaptchaToken(data.captchaToken); }
 
@@ -165,6 +177,7 @@ function EndpointCard({ ep, token, setToken }) {
         <code style={{ color:'#A8C8F0', fontSize:12.5, flex:'0 0 auto', maxWidth:340, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{ep.path}</code>
         <span style={{ color:'#C8D4E8', fontSize:12.5, flex:1 }}>{ep.summary}</span>
         {isStar && <span style={{ fontSize:10, color:'#C8A96E', background:'#1A0F00', border:'1px solid #4A3000', borderRadius:3, padding:'1px 6px', flexShrink:0 }}>KEY OP</span>}
+        <BackendBadge backend={ep.backend} />
         {!ep.auth && <span style={{ fontSize:9.5, color:'#6B7A99', background:'#0D1020', border:'1px solid #1F2A3D', borderRadius:3, padding:'1px 5px', flexShrink:0 }}>No auth</span>}
         <span style={{ color:'#4A5A70', fontSize:12, marginLeft:'auto', flexShrink:0 }}>{open ? '▲' : '▼'}</span>
       </div>
@@ -182,13 +195,6 @@ function EndpointCard({ ep, token, setToken }) {
               {token
                 ? <span style={{ marginLeft:'auto', color:'#2ECC7A', fontSize:11 }}>✓ Token set</span>
                 : <span style={{ marginLeft:'auto', color:'#FF8C00', fontSize:11 }}>⚠ No token — login first</span>}
-            </div>
-          )}
-
-          {/* Dev OTP notice */}
-          {devOtp && (
-            <div style={{ padding:'7px 12px', background:'#0A1A00', border:'1px solid #1A5A00', borderRadius:6, marginBottom:14, fontSize:12, color:'#6EE880' }}>
-              🔑 Dev OTP: <strong>{devOtp}</strong> — paste into /api/auth/otp/verify
             </div>
           )}
 
@@ -285,14 +291,9 @@ function EndpointCard({ ep, token, setToken }) {
                   ✓ Token saved automatically — protected endpoints are now unlocked.
                 </div>
               )}
-              {response.status === 201 && response.data?.pnr && (
+              {response.data?.pnr && response.status === 201 && (
                 <div style={{ marginTop:8, padding:'8px 12px', background:'#0A1A1A', border:'1px solid #005A5A', borderRadius:5, fontSize:11.5, color:'#50E8E8' }}>
                   ✓ Booking created — PNR: <strong>{response.data.pnr}</strong> · E-ticket: <strong>{response.data.tickets?.[0]?.ticketNumber}</strong>
-                </div>
-              )}
-              {response.data?._dev_otp && (
-                <div style={{ marginTop:8, padding:'8px 12px', background:'#0A1A00', border:'1px solid #1A5A00', borderRadius:5, fontSize:11.5, color:'#6EE880' }}>
-                  🔑 Dev OTP: <strong style={{fontSize:16}}>{response.data._dev_otp}</strong> — use in /api/auth/otp/verify
                 </div>
               )}
             </div>
@@ -410,6 +411,9 @@ export default function Home() {
             ))}
             <span style={{ color:'#C8A96E', fontSize:10.5, marginLeft:6 }}>★ KEY OP = critical ticket / refund / print operation</span>
           </div>
+          <div style={{ display:'flex', gap:8, marginBottom:12, flexWrap:'wrap', alignItems:'center' }}>
+            <span style={{fontSize:10,color:'#6B7A99'}}>Backend:</span>
+            <BackendBadge backend="mock" /><BackendBadge backend="real-shaped" /><BackendBadge backend="demo-pipeline" /><BackendBadge backend="mock-counterparty" />
 
           {/* Count */}
           <div style={{ color:'#6B7A99', fontSize:11, marginBottom:12 }}>
