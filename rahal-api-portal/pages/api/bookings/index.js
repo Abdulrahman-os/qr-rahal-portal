@@ -1,8 +1,31 @@
-import { validateToken, getStore, generatePNR, generateTicketNumber } from '../../../lib/mockStore';
+/**
+ * POST /api/bookings  (v2 — real JWT + scope enforcement)
+ * ─────────────────────────────────────────────────────────────────────────
+ * BREAKING CHANGE from the original version of this file: authentication
+ * now goes through requireAuth (real RS256 JWT) instead of the old
+ * mockStore.validateToken. This means tokens issued by the ORIGINAL
+ * demo login flow (login/qr-staff.js → otp/verify.js) are no longer
+ * accepted here — only tokens from the v2 flow (login/qr-staff-v2.js →
+ * otp/verify-v2.js) or OAL login work. This is intentional: booking
+ * creation is real money movement and belongs on the real auth system,
+ * not the mock one, now that role/scope enforcement exists to protect it.
+ *
+ * Requires the BOOKINGS_WRITE scope specifically — OAL tokens (which
+ * only get bookings:read, see lib/security/roles.js) are correctly
+ * rejected here with 403, not 401: they authenticated fine, they just
+ * don't have permission to create bookings.
+ * ─────────────────────────────────────────────────────────────────────────
+ */
+import { getStore, generatePNR, generateTicketNumber } from '../../../lib/mockStore';
+const { requireAuth, hasScope } = require('../../../lib/security/requireAuth');
+const { SCOPES } = require('../../../lib/security/roles');
 
 export default function handler(req, res) {
-  const user = validateToken(req.headers.authorization);
+  const user = requireAuth(req);
   if (!user) return res.status(401).json({ code:'UNAUTHORIZED', message:'Valid Bearer token required.' });
+  if (!hasScope(user, SCOPES.BOOKINGS_WRITE)) {
+    return res.status(403).json({ code:'FORBIDDEN', message:`Missing required scope: ${SCOPES.BOOKINGS_WRITE}` });
+  }
 
   if (req.method === 'POST') {
     const { ticketType, passengers, outboundFlightOptionId, returnFlightOptionId, contactInfo, paymentMethod, fareConsent } = req.body || {};
@@ -26,7 +49,7 @@ export default function handler(req, res) {
 
     const booking = {
       pnr, bookingStatus: ticketType === 'ID90' ? 'STANDBY' : 'CONFIRMED',
-      staffNumber: user.staffNumber || '123456',
+      staffNumber: user.sub,
       ticketType, tickets,
       totalAmountCharged: total, currency:'QAR',
       issuedAt: new Date().toISOString(),
