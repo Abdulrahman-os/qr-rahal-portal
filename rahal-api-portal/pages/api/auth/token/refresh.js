@@ -16,6 +16,7 @@
 const storage = require('../../../../lib/security/storage');
 const { sha256, generateOpaqueToken } = require('../../../../lib/security/tokens');
 const { signAccessToken, REFRESH_TOKEN_TTL_SECONDS } = require('../../../../lib/security/jwt');
+const { ROLES, scopesForRole } = require('../../../../lib/security/roles');
 const crypto = require('crypto');
 
 export default async function handler(req, res) {
@@ -49,6 +50,13 @@ export default async function handler(req, res) {
     sub: account.staffNumber,
     staffType: account.staffType,
     name: `${account.firstName} ${account.lastName}`,
+    // Recomputed fresh from the account on every refresh — NOT copied
+    // from the token being replaced. This means a permission change
+    // (e.g. account suspension) takes effect on the next refresh
+    // (within 15 min, the access token TTL) rather than persisting
+    // for up to the full 7-day refresh token lifetime.
+    role: ROLES.STAFF,
+    scopes: scopesForRole(ROLES.STAFF),
     jti: crypto.randomUUID(),
   });
 
