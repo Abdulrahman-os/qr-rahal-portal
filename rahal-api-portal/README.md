@@ -322,12 +322,14 @@ npm run dev
 # → http://localhost:3000
 ```
 
-In dev mode the API returns `_dev_code` (CAPTCHA) and `_dev_otp` (OTP) in
-responses so you can complete the auth flow without real SMS/email.
+In dev mode the CAPTCHA API still returns `_dev_code` in responses so
+you can complete login without reading the image. **OTP delivery is
+real** (see below) — `POST /api/auth/otp/send` no longer returns the
+code in the response; it actually sends it via email or SMS.
 
 ---
 
-## Live Test Credentials
+## Live Test Credentials (legacy demo account — no real OTP)
 
 | Field         | Value               |
 |---------------|---------------------|
@@ -338,20 +340,62 @@ responses so you can complete the auth flow without real SMS/email.
 | OAL Last Name | `Al-Rashidi`        |
 | Test PNR      | `B8XYZ6`            |
 
+⚠️ This account has no real email/mobile on file (it's a hardcoded
+fixture in `login/qr-staff.js`, not a provisioned account), so
+`POST /api/auth/otp/send` will fail with `NO_CONTACT_INFO` for it —
+this is correct behavior, not a bug. To get a real OTP, provision a
+real account first (below).
+
 ---
 
-## Full Auth Flow (Step-by-Step)
+## Real OTP Delivery — Setup & Full Flow
+
+`POST /api/auth/otp/send` sends a genuine email (SMTP) or SMS (Twilio)
+— see `lib/notifications/email.js` / `lib/notifications/sms.js`. Two
+things are required for this to work:
+
+**1. Provider credentials** (see `.env.example` for full details):
+```
+SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM
+TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER
+```
+You need real accounts with an SMTP provider (Outlook/Office365,
+Gmail, SendGrid, etc.) and/or Twilio — this project can't create those
+accounts for you.
+
+**2. A provisioned account with your real contact info** — the demo
+account above has no real email/mobile, so OTP delivery needs an
+account created through the real provisioning flow instead:
+
+```
+1. POST /api/admin/staff/provision   (requires x-internal-api-key)
+   → body includes YOUR real email/mobile
+   → returns an activationLink
+2. POST /api/auth/activate           (using the token from that link)
+   → sets your password, account becomes ACTIVE
+3. POST /api/auth/login/qr-staff-v2  (your chosen staffNumber + password)
+   → GET /api/captcha/generate first for captchaToken/captchaCode
+   → returns { pendingAuthSessionId }
+4. POST /api/auth/otp/send
+   → { pendingAuthSessionId, deliveryMethod: "EMAIL" | "SMS" }
+   → a REAL code arrives in your inbox/phone
+5. GET /api/captcha/refresh           → fresh CAPTCHA for the verify step
+6. POST /api/auth/otp/verify-v2
+   → { pendingAuthSessionId, otpCode: <from your email/SMS>, captchaToken, captchaCode }
+   → returns { accessToken, refreshToken, role, scopes }
+```
+
+---
+
+## Full Auth Flow — Legacy Demo Account (CAPTCHA-only, no real OTP)
 
 ```
 1. GET  /api/captcha/generate        → { captchaToken, imageBase64, _dev_code }
 2. POST /api/auth/login/qr-staff     → { pendingAuthSessionId }
-3. POST /api/auth/otp/send           → { _dev_otp }
-4. GET  /api/captcha/refresh         → fresh token for OTP verify step
-5. POST /api/auth/otp/verify         → { accessToken }   ← use as Bearer token
-6. POST /api/flights/search          → { outboundOptions[].flightOptionId }
-7. POST /api/bookings                → { pnr, tickets[].ticketNumber }
-8. GET  /api/bookings/{pnr}/eticket/print → { downloadUrl }
+3. POST /api/auth/otp/send           → fails with NO_CONTACT_INFO for this account
 ```
+Use the Real OTP Delivery flow above instead if you need to actually
+complete login end-to-end.
 
 ---
 

@@ -13,7 +13,8 @@
     "react": "^18",
     "react-dom": "^18",
     "jsonwebtoken": "^9.0.2",
-    "bcryptjs": "^2.4.3"
+    "bcryptjs": "^2.4.3",
+    "nodemailer": "^6.9.14"
   },
   "devDependencies": {
     "@types/node": "^20",
