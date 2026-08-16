@@ -28,7 +28,7 @@ const { ROLES, scopesForRole } = require('../../../../lib/security/roles');
 
 const VALID_OAL = {
   '157-9498625062': { lastName: 'Mohammed', name: 'Abdulrahman', airline: 'QR' },
-  '157-9876543210': { lastName: 'Smith', name: 'John Smith', airline: 'BA' },
+  '157-9876543210': { lastName: 'Thorp', name: 'Tamarra Kupermann', airline: 'QR' },
 };
 
 export default function handler(req, res) {
