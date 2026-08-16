@@ -27,7 +27,7 @@ const { signAccessToken } = require('../../../../lib/security/jwt');
 const { ROLES, scopesForRole } = require('../../../../lib/security/roles');
 
 const VALID_OAL = {
-  '157-1234567890': { lastName: 'Al-Rashidi', name: 'Ahmed Al-Rashidi', airline: 'EK' },
+  '157-9498625062': { lastName: 'Mohammed', name: 'Abdulrahman', airline: 'QR' },
   '157-9876543210': { lastName: 'Smith', name: 'John Smith', airline: 'BA' },
 };
 
