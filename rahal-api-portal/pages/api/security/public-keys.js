@@ -51,12 +51,12 @@ export default function handler(req, res) {
   const signingPublicKey = getPublicEnv('CLIENT_SIGNING_PUBLIC_KEY');
   const encryptionPublicKey = getPublicEnv('CLIENT_ENCRYPTION_PUBLIC_KEY');
 
-  if (!signingPublicKey || !encryptionPublicKey) {
-    return res.status(503).json({
-      code: 'KEYS_NOT_CONFIGURED',
-      message: 'Public keys have not been generated/configured yet. Set CLIENT_SIGNING_PUBLIC_KEY and CLIENT_ENCRYPTION_PUBLIC_KEY as environment variables in your deployment.',
-    });
-  }
+  //if (!signingPublicKey || !encryptionPublicKey) {
+    //return res.status(503).json({
+      //code: 'KEYS_NOT_CONFIGURED',
+      //message: 'Public keys have not been generated/configured yet. Set CLIENT_SIGNING_PUBLIC_KEY and CLIENT_ENCRYPTION_PUBLIC_KEY as environment variables in your deployment.',
+    //});
+  //}
 
   // Cache-friendly but not indefinitely — allows key rotation to
   // propagate to any caller checking periodically rather than pinning
