@@ -79,10 +79,39 @@ function getPublicKeyPem() {
   return publicKey;
 }
 
+/**
+ * Converts the RS256 public key to JWK (JSON Web Key) format — the
+ * industry-standard shape for /.well-known/jwks.json. This is a
+ * DIFFERENT key from CLIENT_SIGNING_PUBLIC_KEY /
+ * CLIENT_ENCRYPTION_PUBLIC_KEY (see lib/security/payloadCrypto.js) —
+ * those are for the payload sign/encrypt scheme aimed at a real
+ * backend counterparty. THIS key is what verifies the Bearer JWTs
+ * this service actually issues (signAccessToken above) — that's what
+ * JWKS conventionally publishes, so any service holding one of our
+ * tokens can verify its signature without calling back to us.
+ *
+ * `kid` (key ID) is derived deterministically from the key itself
+ * (not random), so it stays stable across restarts as long as the
+ * same key is loaded — important once you rotate keys and need
+ * multiple entries in the JWKS array, each identifiable by its kid.
+ */
+function getJwk() {
+  const keyObject = crypto.createPublicKey(publicKey); // auto-detects PKCS1 RSA PEM
+  const jwk = keyObject.export({ format: 'jwk' }); // { kty: 'RSA', n, e }
+  const kid = crypto.createHash('sha256').update(publicKey).digest('hex').slice(0, 16);
+  return {
+    ...jwk,
+    kid,
+    use: 'sig',
+    alg: 'RS256',
+  };
+}
+
 module.exports = {
   signAccessToken,
   verifyAccessToken,
   getPublicKeyPem,
+  getJwk,
   ACCESS_TOKEN_TTL_SECONDS,
   REFRESH_TOKEN_TTL_SECONDS,
 };
