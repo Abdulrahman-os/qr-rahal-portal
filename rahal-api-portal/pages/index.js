@@ -520,6 +520,7 @@ export default function Home() {
           <div style={{ display:'flex', gap:8, marginBottom:12, flexWrap:'wrap', alignItems:'center' }}>
             <span style={{fontSize:10,color:'#6B7A99'}}>Backend:</span>
             <BackendBadge backend="mock" /><BackendBadge backend="real-shaped" /><BackendBadge backend="demo-pipeline" /><BackendBadge backend="mock-counterparty" />
+          </div>
 
           {/* Count */}
           <div style={{ color:'#6B7A99', fontSize:11, marginBottom:12 }}>
