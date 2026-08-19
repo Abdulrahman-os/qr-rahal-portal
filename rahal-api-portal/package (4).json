@@ -1,0 +1,27 @@
+{
+  "name": "rahal-api-portal",
+  "version": "2.6.0",
+  "private": true,
+  "description": "RAHAL Qatar Airways Staff Travel – Interactive API Portal",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start -p ${PORT:-3000}"
+  },
+  "dependencies": {
+    "next": "^14.2.25",
+    "react": "^18",
+    "react-dom": "^18",
+    "jsonwebtoken": "^9.0.2",
+    "bcryptjs": "^2.4.3",
+    "nodemailer": "^6.9.14"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18"
+  },
+  "overrides": {
+    "semver": "^7.5.4"
+  }
+}
