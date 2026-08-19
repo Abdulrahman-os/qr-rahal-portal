@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import Head from 'next/head';
 import { ENDPOINTS, TAGS } from '../lib/endpoints';
+import { verifyJwtClientSide } from '../lib/clientJwtVerify';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const METHOD_STYLE = {
@@ -139,11 +140,25 @@ function EndpointCard({ ep, token, setToken }) {
     return body;
   };
 
+  // Header params (in:"header") are a separate concept from body fields
+  // and from the Authorization bearer token — e.g. x-internal-api-key
+  // on the provisioning endpoint. Built from the same formVals state
+  // as everything else, keyed by the param's own name.
+  const headerParams = (ep.params || []).filter(p => p.in === 'header');
+  const buildExtraHeaders = () => {
+    const h = {};
+    headerParams.forEach(p => {
+      const v = formVals[p.name];
+      if (v) h[p.name] = v;
+    });
+    return h;
+  };
+
   const execute = async () => {
     setLoading(true); setResponse(null);
     const url = buildUrl();
     const body = buildBody();
-    const headers = { 'Content-Type': 'application/json' };
+    const headers = { 'Content-Type': 'application/json', ...buildExtraHeaders() };
     if (needsToken && token) headers['Authorization'] = `Bearer ${token}`;
 
     const t0 = Date.now();
@@ -195,6 +210,29 @@ function EndpointCard({ ep, token, setToken }) {
               {token
                 ? <span style={{ marginLeft:'auto', color:'#2ECC7A', fontSize:11 }}>✓ Token set</span>
                 : <span style={{ marginLeft:'auto', color:'#FF8C00', fontSize:11 }}>⚠ No token — login first</span>}
+            </div>
+          )}
+
+          {/* Header params (e.g. x-internal-api-key) — distinct from
+              body fields and the Authorization bearer token */}
+          {headerParams.length > 0 && (
+            <div style={{ marginBottom:14 }}>
+              <div style={{ fontSize:10, fontWeight:700, color:'#C8A96E', letterSpacing:1, textTransform:'uppercase', marginBottom:8 }}>Required Headers</div>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))', gap:8 }}>
+                {headerParams.map(p => (
+                  <div key={p.name}>
+                    <label style={{ display:'block', fontSize:10.5, color:'#6B7A99', marginBottom:3 }}>
+                      <code style={{ color:'#C89FFF' }}>{p.name}</code>
+                      {p.required && <span style={{ color:'#FF5A5A', marginLeft:4 }}>*</span>}
+                    </label>
+                    <input value={formVals[p.name]||''} onChange={e=>setFormVals(v=>({...v,[p.name]:e.target.value}))}
+                      placeholder={p.desc}
+                      style={{ width:'100%', background:'#0D1420', color:'#E8ECF4', border:'1px solid #3A1A5C', borderRadius:5, padding:'7px 9px', fontSize:12, outline:'none' }}
+                    />
+                    <div style={{ fontSize:9.5, color:'#3A4A60', marginTop:2 }}>{p.desc}</div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -264,6 +302,9 @@ function EndpointCard({ ep, token, setToken }) {
             <div style={{ background:'#050810', borderRadius:6, padding:'10px 13px', border:'1px solid #1F2A3D', fontSize:11, fontFamily:'monospace' }}>
               <span style={{ color: ms.color }}>{ep.method}</span> <span style={{ color:'#B8D4F0' }}>{buildUrl()}</span>
               {needsToken && token && <div style={{ color:'#3A5A40', marginTop:4 }}>Authorization: Bearer {token.slice(0,20)}...</div>}
+              {headerParams.map(p => formVals[p.name] && (
+                <div key={p.name} style={{ color:'#C89FFF', marginTop:4 }}>{p.name}: {formVals[p.name].slice(0,30)}{formVals[p.name].length>30?'...':''}</div>
+              ))}
               {buildBody() && <div style={{ color:'#7EC8A4', marginTop:6 }}>{JSON.stringify(buildBody(), null, 2)}</div>}
             </div>
           </div>
@@ -316,6 +357,17 @@ export default function Home() {
   const [search, setSearch]       = useState('');
   const [token, setToken]         = useState('');
   const [showTokenPanel, setShowTokenPanel] = useState(false);
+  const [showInspector, setShowInspector] = useState(false);
+  const [inspectToken, setInspectToken] = useState('');
+  const [inspectResult, setInspectResult] = useState(null);
+  const [inspecting, setInspecting] = useState(false);
+
+  const runInspection = async () => {
+    setInspecting(true);
+    const result = await verifyJwtClientSide(inspectToken);
+    setInspectResult(result);
+    setInspecting(false);
+  };
 
   const filtered = ENDPOINTS.filter(ep => {
     const matchTag    = activeTag === 'ALL' || ep.tag === activeTag;
@@ -352,6 +404,10 @@ export default function Home() {
               style={{ background: token ? '#0D3520' : '#1A0A10', color: token ? '#2ECC7A' : '#C8A96E', border:`1px solid ${token?'#1A5A38':'#5C0931'}`, borderRadius:5, padding:'5px 12px', fontSize:11, cursor:'pointer' }}>
               {token ? '🔓 Token Set' : '🔐 Set Token'}
             </button>
+            <button onClick={()=>setShowInspector(p=>!p)}
+              style={{ background:'#0D1420', color:'#C89FFF', border:'1px solid #3A1A5C', borderRadius:5, padding:'5px 12px', fontSize:11, cursor:'pointer' }}>
+              🔍 Inspect Token
+            </button>
           </div>
         </div>
 
@@ -365,6 +421,56 @@ export default function Home() {
               />
               <button onClick={()=>setToken('')} style={{ background:'#2A0D0D', color:'#FF5A5A', border:'1px solid #4A1A1A', borderRadius:5, padding:'6px 10px', fontSize:11, cursor:'pointer' }}>Clear</button>
               <button onClick={()=>setShowTokenPanel(false)} style={{ background:'#1F2A3D', color:'#6B7A99', border:'1px solid #2A3A50', borderRadius:5, padding:'6px 10px', fontSize:11, cursor:'pointer' }}>✕</button>
+            </div>
+          </div>
+        )}
+
+        {/* Token Inspector panel — client-side RS256 verification via
+            the browser's SubtleCrypto API, using only the PUBLIC JWKS
+            fetched from /api/jwks. No private key ever reaches this
+            code — see lib/clientJwtVerify.js. */}
+        {showInspector && (
+          <div style={{ background:'#0A0C14', borderTop:'1px solid #1F2A3D', padding:'14px 20px' }}>
+            <div style={{ maxWidth:1200, margin:'0 auto' }}>
+              <div style={{ display:'flex', gap:10, alignItems:'center', marginBottom:10 }}>
+                <span style={{ fontSize:11, color:'#6B7A99', whiteSpace:'nowrap' }}>Token to inspect:</span>
+                <input value={inspectToken} onChange={e=>setInspectToken(e.target.value)} placeholder="Paste any JWT to verify its signature client-side, using the public JWKS…"
+                  style={{ flex:1, background:'#111520', color:'#E8ECF4', border:'1px solid #1F2A3D', borderRadius:5, padding:'6px 10px', fontSize:11, fontFamily:'monospace', outline:'none' }}
+                />
+                <button onClick={runInspection} disabled={inspecting || !inspectToken}
+                  style={{ background: inspecting ? '#1A2A3A' : '#3A1A5C', color:'#C89FFF', border:'1px solid #5C2A8C', borderRadius:5, padding:'6px 14px', fontSize:11, cursor: inspecting?'not-allowed':'pointer' }}>
+                  {inspecting ? 'Verifying…' : 'Verify'}
+                </button>
+                <button onClick={()=>{setShowInspector(false); setInspectResult(null);}} style={{ background:'#1F2A3D', color:'#6B7A99', border:'1px solid #2A3A50', borderRadius:5, padding:'6px 10px', fontSize:11, cursor:'pointer' }}>✕</button>
+              </div>
+
+              {inspectResult && (
+                <div className="fade-in" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+                  {/* Verdict column */}
+                  <div style={{ background:'#050810', border:'1px solid #1F2A3D', borderRadius:6, padding:'12px 14px' }}>
+                    <div style={{ fontSize:10, fontWeight:700, color:'#C8A96E', letterSpacing:1, textTransform:'uppercase', marginBottom:8 }}>Verification Result</div>
+                    <div style={{ display:'flex', flexDirection:'column', gap:6, fontSize:12 }}>
+                      <div>Well-formed JWT: <strong style={{color: inspectResult.wellFormed ? '#2ECC7A' : '#FF5A5A'}}>{inspectResult.wellFormed ? 'Yes' : 'No'}</strong></div>
+                      {inspectResult.wellFormed && <>
+                        <div>Signature valid: <strong style={{color: inspectResult.signatureValid ? '#2ECC7A' : '#FF5A5A'}}>{inspectResult.signatureValid ? '✓ Valid — signed by this service\'s real key' : '✗ Invalid'}</strong></div>
+                        {inspectResult.expired !== null && <div>Expired: <strong style={{color: inspectResult.expired ? '#FF8C00' : '#2ECC7A'}}>{inspectResult.expired ? 'Yes' : 'No'}</strong></div>}
+                        {inspectResult.issuerValid !== null && <div>Issuer valid: <strong style={{color: inspectResult.issuerValid ? '#2ECC7A' : '#FF5A5A'}}>{inspectResult.issuerValid ? 'Yes' : 'No'}</strong></div>}
+                        {inspectResult.audienceValid !== null && <div>Audience valid: <strong style={{color: inspectResult.audienceValid ? '#2ECC7A' : '#FF5A5A'}}>{inspectResult.audienceValid ? 'Yes' : 'No'}</strong></div>}
+                      </>}
+                      {inspectResult.errors.length > 0 && (
+                        <div style={{ marginTop:6, padding:'8px 10px', background:'#2A0D0D', border:'1px solid #4A1A1A', borderRadius:5, color:'#FF9A9A' }}>
+                          {inspectResult.errors.map((e,i) => <div key={i}>⚠ {e}</div>)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {/* Decoded payload column */}
+                  <div style={{ background:'#050810', border:'1px solid #1F2A3D', borderRadius:6, padding:'12px 14px', overflow:'auto', maxHeight:220 }}>
+                    <div style={{ fontSize:10, fontWeight:700, color:'#C8A96E', letterSpacing:1, textTransform:'uppercase', marginBottom:8 }}>Decoded Payload</div>
+                    <pre style={{ color:'#7EC8A4', fontSize:11, margin:0, whiteSpace:'pre-wrap' }}>{JSON.stringify(inspectResult.payload, null, 2)}</pre>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -414,7 +520,6 @@ export default function Home() {
           <div style={{ display:'flex', gap:8, marginBottom:12, flexWrap:'wrap', alignItems:'center' }}>
             <span style={{fontSize:10,color:'#6B7A99'}}>Backend:</span>
             <BackendBadge backend="mock" /><BackendBadge backend="real-shaped" /><BackendBadge backend="demo-pipeline" /><BackendBadge backend="mock-counterparty" />
-          </div>
 
           {/* Count */}
           <div style={{ color:'#6B7A99', fontSize:11, marginBottom:12 }}>
