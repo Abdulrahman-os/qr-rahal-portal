@@ -33,7 +33,7 @@ export const ENDPOINTS = [
     desc:"Authenticates Former Staff, QAA, or QEEL using staff number + password + CAPTCHA. Returns pending session and triggers OTP or security-detail step.",
     auth:false, star:false,
     params:[],
-    body:{staffNumber:"123456",password:"P@ssword1!",staffType:"FORMER_STAFF",captchaToken:"cap_abc123",captchaCode:"3fmwj"},
+    body:{staffNumber:"778899",password:"passwordA1%.",staffType:"FORMER_STAFF",captchaToken:"cap_abc123",captchaCode:"3fmwj"},
     fields:[
       {name:"staffNumber",type:"string",required:true,desc:"Employee staff ID"},
       {name:"password",type:"password",required:true,desc:"Account password"},
@@ -49,7 +49,7 @@ export const ENDPOINTS = [
     desc:"Authenticates OAL staff using 13-digit ticket number and last name. No pre-registration needed. Session scoped to that booking.",
     auth:false,
     params:[],
-    body:{ticketNumber:"157-1234567890",lastName:"Al-Rashidi",captchaToken:"cap_def456",captchaCode:"3fmwj"},
+    body:{ticketNumber:"157-9498625062",lastName:"Mohammed",captchaToken:"cap_def456",captchaCode:"3fmwj"},
     fields:[
       {name:"ticketNumber",type:"string",required:true,desc:"13-digit ticket number (AAA-XXXXXXXXXX)"},
       {name:"lastName",type:"string",required:true,desc:"Staff member's last name"},
@@ -149,9 +149,9 @@ export const ENDPOINTS = [
     params:[{name:"x-internal-api-key",in:"header",required:true,type:"string",desc:"Static service credential for the HRIS/admin integration — see lib/security/adminAuth.js"}],
     body:{
       staffNumber:"778899", staffType:"FORMER_STAFF",
-      firstName:"Layla", lastName:"Hassan",
-      email:"layla.hassan@qatarairways.com.qa", mobile:"+97455512345",
-      dateOfBirth:"1990-04-12", passportNumber:"P99988877",
+      firstName:"Abdulrahman", lastName:"Mohammed",
+      email:"abdulrahman.mohammed2026@outlook.com", mobile:"+255796854251",
+      dateOfBirth:"1995-02-04", passportNumber:"TAE831288",
       createdBy:"hris-sync-service"
     },
     fields:[
@@ -200,7 +200,7 @@ export const ENDPOINTS = [
     desc:"Starts password reset. Sends OTP if contact details exist; otherwise triggers security-detail form.",
     auth:false,
     params:[],
-    body:{staffNumber:"123456"},
+    body:{staffNumber:"778899"},
     fields:[{name:"staffNumber",type:"string",required:true,desc:"Staff ID number"}],
     example_response:{pendingAuthSessionId:"sess_reset_abc",nextStep:"OTP_REQUIRED"}
   },
@@ -410,7 +410,7 @@ export const ENDPOINTS = [
     desc:"Lists passengers on a flight for standby travel. Priority codes: S1 (duty confirmed) · S2 (duty standby) · R1 (rebate confirmed) · R2 (rebate standby) · N2 (OAL standby).",
     auth:true,
     params:[],
-    body:{ticketNumber:"157-1234567890",flightNumber:"QR007",flightDate:"2026-09-15",origin:"DOH",destination:"LHR",priorityCode:"R2",passengerIds:["PAX_001"]},
+    body:{ticketNumber:"157-9498625062",flightNumber:"QR1499",flightDate:"2026-08-22",origin:"DAR",destination:"DOH",priorityCode:"R2",passengerIds:["PAX_001"]},
     fields:[
       {name:"ticketNumber",type:"string",required:true,desc:"13-digit e-ticket number"},
       {name:"flightNumber",type:"string",required:true,desc:"QR flight number e.g. QR007"},
