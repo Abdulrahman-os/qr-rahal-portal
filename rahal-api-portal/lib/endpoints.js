@@ -168,6 +168,24 @@ export const ENDPOINTS = [
     example_response:{staffNumber:"778899",status:"PENDING_ACTIVATION",activationLink:"https://stafftravel.qatarairways.com.qa/activate?token=...",activationTokenExpiresAt:"2026-08-18T12:00:00Z",message:"Staff account provisioned. Deliver the activation link via a verified channel."}
   },
   {
+    method:"GET", path:"/api/admin/auth-check", tag:"Authentication",
+    summary:"TEMP DIAGNOSTIC — confirm internal API key is configured correctly",
+    desc:"Checks whether INTERNAL_PROVISIONING_API_KEY is set on the server and whether the key you provide below matches — never reveals either actual value, only booleans and lengths. Delete pages/api/admin/auth-check.js once you've confirmed the key works; this route has no place in a long-term deployment.",
+    auth:false,
+    params:[{name:"x-internal-api-key",in:"header",required:true,type:"string",desc:"The key you want to test — paste your INTERNAL_PROVISIONING_API_KEY here"}],
+    body:null, fields:[],
+    example_response:{serverHasKeyConfigured:true,headerWasSent:true,keysMatch:true,expectedKeyLength:44,providedKeyLength:44,diagnosis:"Match confirmed — this key is valid and should work on other admin endpoints."}
+  },
+  {
+    method:"GET", path:"/api/admin/npm-audit", tag:"Authentication",
+    summary:"TEMP DIAGNOSTIC — real npm audit output from the live server",
+    desc:"Runs the actual npm audit --json on this deployed server (where node_modules and registry access genuinely exist) and returns a summarized list of real vulnerabilities: package name, severity, advisory info. Delete pages/api/admin/npm-audit.js once you've pulled this data — a route that shells out to npm should not stay in a long-term deployment.",
+    auth:false,
+    params:[{name:"x-internal-api-key",in:"header",required:true,type:"string",desc:"Your INTERNAL_PROVISIONING_API_KEY"}],
+    body:null, fields:[],
+    example_response:{summary:{high:2,moderate:0,critical:0,total:2},vulnerabilities:[{package:"example-pkg",severity:"high",range:"<1.2.3",fixAvailable:true}]}
+  },
+  {
     method:"POST", path:"/api/auth/logout", tag:"Authentication",
     summary:"Logout and invalidate session (legacy demo route)",
     desc:"Invalidates the current in-memory session token server-side, based on the Authorization header. Superseded by /api/auth/token/revoke for the production-track flow (RFC 7009-style, token passed in body) — kept here for the original mock login flow.",
