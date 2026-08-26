@@ -1,129 +1,48 @@
 /**
- * STORAGE ADAPTER — SWAP POINT FOR PRODUCTION
+ * STORAGE ADAPTER — portal-local data only
  * ─────────────────────────────────────────────────────────────────────────
- * Everything in this file is an in-memory Map. That means all staff
- * accounts, activation tokens, and refresh tokens are LOST on every
- * server restart / redeploy / cold start.
+ * Staff accounts, passwords, and contact info all live in RAHAL's own
+ * database (stafftravel.qatarairways.com.qa). The portal does NOT
+ * maintain a shadow copy of any of that — credentials are validated live
+ * against RAHAL on every login via lib/rahalAuthProxy.js.
  *
- * This is the ONLY file that should need to change to go live:
- * replace each method's body with real queries against Postgres /
- * MySQL / DynamoDB / etc. Keep the function signatures identical and
- * every route in pages/api/** continues to work unmodified.
+ * The only state this adapter manages is portal-specific:
  *
- * Suggested real schema (Postgres):
+ *   refresh_tokens — opaque tokens issued by POST /api/auth/otp/verify.
+ *     Short-lived access tokens are stateless JWTs (no storage needed).
+ *     Refresh tokens are stored so they can be revoked on logout or
+ *     password change.
  *
- *   CREATE TABLE staff_accounts (
- *     staff_number      TEXT PRIMARY KEY,
- *     staff_type        TEXT NOT NULL,           -- FORMER_STAFF | QAA_QEEL
- *     first_name        TEXT NOT NULL,
- *     last_name         TEXT NOT NULL,
- *     email             TEXT NOT NULL,
- *     mobile            TEXT,
- *     date_of_birth     DATE NOT NULL,
- *     passport_number   TEXT NOT NULL,
- *     password_hash     TEXT,                    -- NULL until activated
- *     status            TEXT NOT NULL DEFAULT 'PENDING_ACTIVATION',
- *                        -- PENDING_ACTIVATION | ACTIVE | SUSPENDED | DISABLED
- *     failed_login_count INT NOT NULL DEFAULT 0,
- *     locked_until      TIMESTAMPTZ,
- *     created_by        TEXT NOT NULL,            -- admin/HR system identity
- *     created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
- *     activated_at      TIMESTAMPTZ
- *   );
+ * CURRENT IMPLEMENTATION: in-memory Map.
+ *   Refresh tokens are lost on server restart (staff must log in again —
+ *   acceptable for an initial production release since access tokens are
+ *   15-minute JWTs and re-login takes < 60 seconds).
  *
- *   CREATE TABLE activation_tokens (
- *     token_hash    TEXT PRIMARY KEY,             -- sha256 of the raw token
- *     staff_number  TEXT NOT NULL REFERENCES staff_accounts(staff_number),
- *     expires_at    TIMESTAMPTZ NOT NULL,
- *     used_at       TIMESTAMPTZ,
- *     created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
- *   );
+ * TO ADD PERSISTENCE: replace the Map operations below with real DB
+ *   queries (Postgres, Redis, DynamoDB — anything).  Keep the function
+ *   signatures identical; every route continues to work unchanged.
  *
- *   CREATE TABLE refresh_tokens (
- *     token_hash    TEXT PRIMARY KEY,
- *     staff_number  TEXT NOT NULL REFERENCES staff_accounts(staff_number),
- *     expires_at    TIMESTAMPTZ NOT NULL,
- *     revoked_at    TIMESTAMPTZ,
- *     created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
- *   );
- *
- * Never store raw activation/refresh tokens — only their SHA-256 hash
- * (see lib/security/tokens.js). A DB leak then reveals nothing usable.
+ *   Postgres example:
+ *     CREATE TABLE refresh_tokens (
+ *       token_hash   TEXT PRIMARY KEY,
+ *       staff_number TEXT NOT NULL,
+ *       expires_at   TIMESTAMPTZ NOT NULL,
+ *       revoked_at   TIMESTAMPTZ,
+ *       created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+ *     );
  * ─────────────────────────────────────────────────────────────────────────
  */
 
-const staffAccounts    = new Map(); // staffNumber -> account record
-const activationTokens = new Map(); // tokenHash    -> { staffNumber, expiresAt, usedAt }
-const refreshTokens    = new Map(); // tokenHash    -> { staffNumber, expiresAt, revokedAt }
+'use strict';
+
+const refreshTokens = new Map(); // tokenHash → { staffNumber, expiresAt, revokedAt }
 
 module.exports = {
-  // ── Staff accounts ──────────────────────────────────────────────
-  async createStaffAccount(record) {
-    if (staffAccounts.has(record.staffNumber)) {
-      throw Object.assign(new Error('DUPLICATE_STAFF_NUMBER'), { code: 'DUPLICATE_STAFF_NUMBER' });
-    }
-    staffAccounts.set(record.staffNumber, record);
-    return record;
-  },
 
-  async getStaffAccount(staffNumber) {
-    return staffAccounts.get(staffNumber) || null;
-  },
+  // ── Refresh tokens ──────────────────────────────────────────────────────
 
-  async updateStaffAccount(staffNumber, patch) {
-    const existing = staffAccounts.get(staffNumber);
-    if (!existing) return null;
-    const updated = { ...existing, ...patch };
-    staffAccounts.set(staffNumber, updated);
-    return updated;
-  },
-
-  async incrementFailedLogin(staffNumber) {
-    const acc = staffAccounts.get(staffNumber);
-    if (!acc) return null;
-    acc.failedLoginCount = (acc.failedLoginCount || 0) + 1;
-    if (acc.failedLoginCount >= 5) {
-      acc.lockedUntil = Date.now() + 15 * 60 * 1000; // 15 min lockout
-    }
-    staffAccounts.set(staffNumber, acc);
-    return acc;
-  },
-
-  async resetFailedLogin(staffNumber) {
-    const acc = staffAccounts.get(staffNumber);
-    if (!acc) return null;
-    acc.failedLoginCount = 0;
-    acc.lockedUntil = null;
-    staffAccounts.set(staffNumber, acc);
-    return acc;
-  },
-
-  // ── Activation tokens ───────────────────────────────────────────
-  async saveActivationToken(tokenHash, record) {
-    activationTokens.set(tokenHash, record);
-  },
-
-  async getActivationToken(tokenHash) {
-    return activationTokens.get(tokenHash) || null;
-  },
-
-  async markActivationTokenUsed(tokenHash) {
-    const rec = activationTokens.get(tokenHash);
-    if (rec) { rec.usedAt = Date.now(); activationTokens.set(tokenHash, rec); }
-  },
-
-  async invalidateActivationTokensForStaff(staffNumber) {
-    for (const [hash, rec] of activationTokens.entries()) {
-      if (rec.staffNumber === staffNumber && !rec.usedAt) {
-        rec.usedAt = Date.now();
-        activationTokens.set(hash, rec);
-      }
-    }
-  },
-
-  // ── Refresh tokens ──────────────────────────────────────────────
   async saveRefreshToken(tokenHash, record) {
-    refreshTokens.set(tokenHash, record);
+    refreshTokens.set(tokenHash, { ...record });
   },
 
   async getRefreshToken(tokenHash) {
@@ -132,7 +51,10 @@ module.exports = {
 
   async revokeRefreshToken(tokenHash) {
     const rec = refreshTokens.get(tokenHash);
-    if (rec) { rec.revokedAt = Date.now(); refreshTokens.set(tokenHash, rec); }
+    if (rec) {
+      rec.revokedAt = Date.now();
+      refreshTokens.set(tokenHash, rec);
+    }
   },
 
   async revokeAllRefreshTokensForStaff(staffNumber) {
@@ -144,12 +66,12 @@ module.exports = {
     }
   },
 
-  // Diagnostics only — not for production use
+  // ── Diagnostics — dev only ──────────────────────────────────────────────
+
   _debugDump() {
     return {
-      staffAccounts: Array.from(staffAccounts.entries()),
-      activationTokens: Array.from(activationTokens.entries()),
+      note: 'Staff accounts live in RAHAL — only portal refresh tokens are stored here.',
       refreshTokens: Array.from(refreshTokens.entries()),
     };
-  }
+  },
 };
