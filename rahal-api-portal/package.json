@@ -2,7 +2,7 @@
   "name": "rahal-api-portal",
   "version": "2.6.0",
   "private": true,
-  "description": "RAHAL Qatar Airways Staff Travel – Interactive API Portal",
+  "description": "RAHAL Qatar Airways Staff Travel \u2013 Interactive API Portal",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
