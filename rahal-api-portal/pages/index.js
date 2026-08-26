@@ -534,9 +534,11 @@ export default function Home() {
               <div style={{ color:'#C8A96E', fontWeight:700, letterSpacing:.5, marginBottom:10, fontSize:11, textTransform:'uppercase' }}>▶ Quick-Start: Issue a Staff Ticket</div>
               {[
                 ['1','GET /api/captcha/generate','Get a CAPTCHA token and image'],
-                ['2','POST /api/auth/login/qr-staff','Login with staffNumber: 123456, password: P@ssword1!'],
-                ['3','POST /api/auth/otp/send','Send OTP (dev OTP shown in response)'],
-                ['4','POST /api/auth/otp/verify','Verify OTP → JWT token auto-saved'],
+                ['2','POST /api/admin/staff/provision','Provision a real account (x-internal-api-key required) — use your own email/mobile'],
+                ['3','POST /api/auth/activate','Set your password using the activation link token'],
+                ['4','POST /api/auth/login/qr-staff','Login with your provisioned staffNumber + password + CAPTCHA'],
+                ['5','POST /api/auth/otp/send','Send OTP to your real email or mobile'],
+                ['6','POST /api/auth/otp/verify','Verify OTP → JWT access token auto-saved'],
                 ['5','POST /api/flights/search','Search DOH→LHR, get flightOptionId'],
                 ['6','POST /api/bookings','Issue ticket → PNR + e-ticket number returned'],
                 ['7','GET /api/bookings/{pnr}/eticket/print','Download e-ticket PDF'],
