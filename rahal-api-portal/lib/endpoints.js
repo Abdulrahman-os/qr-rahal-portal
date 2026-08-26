@@ -30,14 +30,13 @@ export const ENDPOINTS = [
   {
     method:"POST", path:"/api/auth/login/qr-staff", tag:"Authentication",
     summary:"QR Staff login (Former / QAA / QEEL)",
-    desc:"Authenticates Former Staff, QAA, or QEEL using staff number + password + CAPTCHA. Returns pending session and triggers OTP or security-detail step.",
+    desc:"Authenticates Former Staff, QAA, or QEEL using staff number + password + CAPTCHA. Returns pending session and triggers OTP step. Accounts must first be provisioned (POST /api/admin/staff/provision) and activated (POST /api/auth/activate) — no hardcoded demo accounts exist in this endpoint.",
     auth:false, star:false,
     params:[],
-    body:{staffNumber:"778899",password:"passwordA1%.",staffType:"FORMER_STAFF",captchaToken:"cap_abc123",captchaCode:"3fmwj"},
+    body:{staffNumber:"<provisioned staffNumber>",password:"<password set at activation>",captchaToken:"<token from /api/captcha/generate>",captchaCode:"<code from CAPTCHA image>"},
     fields:[
-      {name:"staffNumber",type:"string",required:true,desc:"Employee staff ID"},
-      {name:"password",type:"password",required:true,desc:"Account password"},
-      {name:"staffType",type:"select",options:["FORMER_STAFF","QAA_QEEL"],required:true,desc:"Staff category"},
+      {name:"staffNumber",type:"string",required:true,desc:"Employee staff ID — must have been provisioned via /api/admin/staff/provision"},
+      {name:"password",type:"password",required:true,desc:"Password chosen by staff member during account activation"},
       {name:"captchaToken",type:"string",required:true,desc:"Token from /api/captcha/generate"},
       {name:"captchaCode",type:"string",required:true,desc:"Text visible in CAPTCHA image"},
     ],
