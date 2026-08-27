@@ -76,21 +76,30 @@ export default async function handler(req, res) {
   // and skip the Twilio/SMTP call below.  Until RAHAL has an API, we rely on
   // the full contact being stored on the session by the login proxy.
 
+  // contactEmail / contactMobile are set by rahalAuthProxy.authenticate()
+  // from the RAHAL login response. PhoneNumberMasked and EmailMasked are
+  // confirmed field names from the RAHAL OTP screen (User Guide v1.0 §2.2).
   const destination = deliveryMethod === 'EMAIL'
-    ? session.contactEmail   // full email set by proxy if available
-    : session.contactMobile; // full mobile set by proxy if available
+    ? session.contactEmail   // full address for actual delivery
+    : session.contactMobile; // full number for actual delivery
 
-  // Masked values for the response display
+  // Masked values shown to the user (format confirmed from guide: ****4321)
   const maskedDisplay = deliveryMethod === 'EMAIL'
     ? (session.maskedEmail  || (destination ? maskEmail(destination)  : null))
     : (session.maskedMobile || (destination ? maskMobile(destination) : null));
 
   if (!destination) {
+    // RAHAL's login response didn't include the full (unmasked) contact.
+    // This is common when RAHAL only returns PhoneNumberMasked / EmailMasked.
+    // Options:
+    //   A) Call fetchProfile(session.sessionCookie) here to get the full address.
+    //   B) When IT's formal API is available, use RAHAL's own OTP endpoint
+    //      (passing session.rahalSession) so RAHAL sends the OTP itself.
+    //   C) Ask QR IT to include the full contact in the login API response.
     return res.status(422).json({
       code: 'NO_CONTACT_INFO',
-      message: `No ${deliveryMethod.toLowerCase()} address on file for this session. `
-        + 'RAHAL may not have returned contact details on login — '
-        + 'check rahalAuthProxy.js parseRahalLoginResponse() to confirm the field names match.',
+      message: `No full ${deliveryMethod.toLowerCase()} address available for OTP delivery. `
+        + 'RAHAL returned only a masked value. See otp/send.js comment for resolution options.',
     });
   }
 
