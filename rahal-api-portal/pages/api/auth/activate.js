@@ -41,7 +41,7 @@ export default async function handler(req, res) {
     return res.status(422).json({ code: 'PASSWORD_MISMATCH', message: 'Passwords do not match.' });
   }
   if (!isPasswordStrongEnough(newPassword)) {
-    return res.status(422).json({ code: 'PASSWORD_TOO_WEAK', message: 'Password must be at least 10 characters and include uppercase, lowercase, a digit, and a special character.' });
+    return res.status(422).json({ code: 'PASSWORD_TOO_WEAK', message: 'Password must be at least 8 characters and include uppercase, lowercase, a digit, and a special character.' });
   }
 
   const tokenHash = sha256(token);
