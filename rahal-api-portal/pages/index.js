@@ -167,8 +167,13 @@ function EndpointCard({ ep, token, setToken }) {
     try {
       const r = await fetch(url, { method: ep.method, headers, body: body ? JSON.stringify(body) : undefined });
       const elapsed = Date.now() - t0;
+      // Read body ONCE as text, then attempt JSON parse.
+      // Never call both r.json() and r.text() — json() consumes the
+      // stream, making the subsequent r.text() throw
+      // 'body stream already read'.
+      const _text = await r.text();
       let data;
-      try { data = await r.json(); } catch { data = { raw: await r.text() }; }
+      try { data = JSON.parse(_text); } catch { data = { raw: _text }; }
       setResponse({ status: r.status, data, elapsed, url, body });
 
       // Auto-store token if login response
