@@ -1,33 +1,83 @@
 /**
- * STORAGE ADAPTER — portal-local session state only
+ * STORAGE ADAPTER — portal-local data only
  * ─────────────────────────────────────────────────────────────────────────
- * Staff account data lives in the RAHAL frontend at
- * https://stafftravel.qatarairways.com.qa. This adapter does NOT
- * maintain any shadow copy of accounts — all account reads/writes go
- * through rahalStaffClient (lib/rahalStaffClient.js).
+ * RAHAL (stafftravel.qatarairways.com.qa) is currently UI-only with no
+ * REST API. This adapter keeps a portal-local record of:
  *
- * The only state managed here is portal-session-specific:
- *   refresh_tokens    — opaque tokens, short-lived, revocable
- *   activation_tokens — single-use, 72-hour TTL, portal-only lifecycle
+ *   staff_accounts   — lightweight index of provisioned staff (staffNumber,
+ *                      status, passwordHash for login, failedLoginCount …).
+ *                      Not a shadow copy of RAHAL — only what the portal
+ *                      needs to drive login, activation, and lockout.
  *
- * Both are intentionally in-memory: losing them on restart is acceptable
- * (staff re-login < 60 s; activation tokens are re-issuable by admin).
- * For persistence, replace Map ops with your DB queries — signatures stay
- * identical, all callers continue to work unchanged.
+ *   activation_tokens — single-use 72-hour tokens issued at provisioning.
+ *
+ *   refresh_tokens   — portal JWT refresh tokens (revocable on logout).
+ *
+ * CURRENT IMPLEMENTATION: in-memory Maps.
+ *   Data is lost on server restart — staff must be re-provisioned or the
+ *   token re-issued. Acceptable for initial release; swap the Map bodies
+ *   below for real DB queries when persistence is needed.
+ *
+ * UPGRADE PATH (when RAHAL gains an API):
+ *   Replace createStaffAccount / getStaffAccount / updateStaffAccount with
+ *   rahalStaffClient calls. Keep activation_tokens and refresh_tokens here
+ *   (they are portal-specific and don't belong in RAHAL).
  * ─────────────────────────────────────────────────────────────────────────
  */
-
 'use strict';
 
-const activationTokens = new Map(); // tokenHash → { staffNumber, expiresAt, usedAt }
-const refreshTokens    = new Map(); // tokenHash → { staffNumber, expiresAt, revokedAt }
+const staffAccounts    = new Map();
+const activationTokens = new Map();
+const refreshTokens    = new Map();
 
 module.exports = {
 
-  // ── Activation tokens (portal-only, not persisted to RAHAL frontend) ───
+  // ── Staff accounts ──────────────────────────────────────────────────────
+
+  async createStaffAccount(record) {
+    if (staffAccounts.has(record.staffNumber)) {
+      throw Object.assign(new Error('DUPLICATE_STAFF_NUMBER'), { code: 'DUPLICATE_STAFF_NUMBER' });
+    }
+    staffAccounts.set(record.staffNumber, { ...record });
+    return record;
+  },
+
+  async getStaffAccount(staffNumber) {
+    return staffAccounts.get(staffNumber) || null;
+  },
+
+  async updateStaffAccount(staffNumber, patch) {
+    const existing = staffAccounts.get(staffNumber);
+    if (!existing) return null;
+    const updated = { ...existing, ...patch };
+    staffAccounts.set(staffNumber, updated);
+    return updated;
+  },
+
+  async incrementFailedLogin(staffNumber) {
+    const acc = staffAccounts.get(staffNumber);
+    if (!acc) return null;
+    acc.failedLoginCount = (acc.failedLoginCount || 0) + 1;
+    if (acc.failedLoginCount >= 5) {
+      acc.lockedUntil = Date.now() + 15 * 60 * 1000;
+    }
+    staffAccounts.set(staffNumber, acc);
+    return acc;
+  },
+
+  async resetFailedLogin(staffNumber) {
+    const acc = staffAccounts.get(staffNumber);
+    if (!acc) return null;
+    acc.failedLoginCount = 0;
+    acc.lockedUntil = null;
+    staffAccounts.set(staffNumber, acc);
+    return acc;
+  },
+
+  // ── Activation tokens ───────────────────────────────────────────────────
 
   async saveActivationToken(tokenHash, record) {
-    activationTokens.set(tokenHash, { ...record, usedAt: null });
+    activationTokens.set(tokenHash, { ...record });
   },
 
   async getActivationToken(tokenHash) {
@@ -36,13 +86,14 @@ module.exports = {
 
   async markActivationTokenUsed(tokenHash) {
     const rec = activationTokens.get(tokenHash);
-    if (rec) activationTokens.set(tokenHash, { ...rec, usedAt: Date.now() });
+    if (rec) { rec.usedAt = Date.now(); activationTokens.set(tokenHash, rec); }
   },
 
   async invalidateActivationTokensForStaff(staffNumber) {
     for (const [hash, rec] of activationTokens.entries()) {
       if (rec.staffNumber === staffNumber && !rec.usedAt) {
-        activationTokens.set(hash, { ...rec, usedAt: Date.now() });
+        rec.usedAt = Date.now();
+        activationTokens.set(hash, rec);
       }
     }
   },
@@ -59,22 +110,25 @@ module.exports = {
 
   async revokeRefreshToken(tokenHash) {
     const rec = refreshTokens.get(tokenHash);
-    if (rec) refreshTokens.set(tokenHash, { ...rec, revokedAt: Date.now() });
+    if (rec) { rec.revokedAt = Date.now(); refreshTokens.set(tokenHash, rec); }
   },
 
   async revokeAllRefreshTokensForStaff(staffNumber) {
     for (const [hash, rec] of refreshTokens.entries()) {
       if (rec.staffNumber === staffNumber && !rec.revokedAt) {
-        refreshTokens.set(hash, { ...rec, revokedAt: Date.now() });
+        rec.revokedAt = Date.now();
+        refreshTokens.set(hash, rec);
       }
     }
   },
 
+  // ── Diagnostics — dev only ──────────────────────────────────────────────
+
   _debugDump() {
     return {
-      note: 'Staff accounts live in RAHAL frontend — only portal session tokens stored here.',
-      activationTokenCount: activationTokens.size,
-      refreshTokenCount: refreshTokens.size,
+      staffAccounts:    Array.from(staffAccounts.entries()),
+      activationTokens: Array.from(activationTokens.entries()),
+      refreshTokens:    Array.from(refreshTokens.entries()),
     };
   },
 };
