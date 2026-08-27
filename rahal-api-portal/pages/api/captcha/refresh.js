@@ -1,36 +1,64 @@
-import { generateCaptcha, getStore } from '../../../lib/mockStore';
+/**
+ * POST /api/auth/token/refresh
+ * ─────────────────────────────────────────────────────────────────────────
+ * Exchanges a valid, unrevoked refresh token for a new access token.
+ * Refresh tokens rotate on every use. Staff account status is re-checked
+ * on each refresh against the RAHAL frontend so suspensions take effect
+ * within one token TTL (15 min) without requiring a full re-login.
+ * ─────────────────────────────────────────────────────────────────────────
+ */
+const storage = require('../../../../lib/security/storage');
+const rahalStaff = require('../../../../lib/rahalStaffClient');
+const { sha256, generateOpaqueToken } = require('../../../../lib/security/tokens');
+const { signAccessToken, REFRESH_TOKEN_TTL_SECONDS } = require('../../../../lib/security/jwt');
+const { ROLES, scopesForRole } = require('../../../../lib/security/roles');
+const crypto = require('crypto');
 
-function buildSvgCaptcha(code) {
-  const colors = ['#FF6B6B','#C8A96E','#4A9EFF','#2ECC7A','#C89FFF'];
-  let letters = '';
-  for (let i = 0; i < code.length; i++) {
-    const x = 14 + i * 22;
-    const y = 28 + Math.floor(Math.random() * 10) - 5;
-    const rot = Math.floor(Math.random() * 30) - 15;
-    const color = colors[i % colors.length];
-    const size = 18 + Math.floor(Math.random() * 6);
-    letters += `<text x="${x}" y="${y}" fill="${color}" font-size="${size}" font-weight="bold" font-family="monospace" transform="rotate(${rot},${x},${y})">${code[i]}</text>`;
-  }
-  let noise = '';
-  for (let i = 0; i < 6; i++) {
-    noise += `<line x1="${Math.random()*160}" y1="${Math.random()*40}" x2="${Math.random()*160}" y2="${Math.random()*40}" stroke="#ffffff" stroke-width="1" opacity="0.3"/>`;
-  }
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="160" height="44" style="background:#1a1a2e;border-radius:6px">${noise}${letters}</svg>`;
-  return 'data:image/svg+xml;base64,' + Buffer.from(svg).toString('base64');
-}
+export default async function handler(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ code: 'METHOD_NOT_ALLOWED', message: 'Use POST' });
 
-export default function handler(req, res) {
-  if (req.method !== 'GET') return res.status(405).json({ code:'METHOD_NOT_ALLOWED', message:'Use GET' });
-  const { previousToken } = req.query;
-  if (previousToken) {
-    const store = getStore();
-    delete store.captchas[previousToken];
+  const { refreshToken } = req.body || {};
+  if (!refreshToken) return res.status(422).json({ code: 'VALIDATION_ERROR', message: 'refreshToken is required.' });
+
+  const hash   = sha256(refreshToken);
+  const record = await storage.getRefreshToken(hash);
+  const invalid = () => res.status(401).json({ code: 'REFRESH_TOKEN_INVALID', message: 'Refresh token is invalid, expired, or has been revoked. Please log in again.' });
+
+  if (!record)           return invalid();
+  if (record.revokedAt)  return invalid();
+  if (Date.now() > record.expiresAt) return invalid();
+
+  // ── Re-check account status on RAHAL frontend ──
+  let account;
+  try {
+    account = await rahalStaff.getStaffAccount(record.staffNumber);
+  } catch (err) {
+    return res.status(502).json({ code: 'RAHAL_FRONTEND_ERROR', message: `Could not verify account: ${err.message}` });
   }
-  const { captchaToken, code } = generateCaptcha();
+  if (!account || account.status !== 'ACTIVE') return invalid();
+
+  // ── Rotate: revoke old, issue new ──
+  await storage.revokeRefreshToken(hash);
+  const { raw: newRaw, hash: newHash } = generateOpaqueToken(32);
+  await storage.saveRefreshToken(newHash, {
+    staffNumber: record.staffNumber,
+    expiresAt: Date.now() + REFRESH_TOKEN_TTL_SECONDS * 1000,
+    revokedAt: null,
+  });
+
+  const accessToken = signAccessToken({
+    sub:       account.staffNumber,
+    staffType: account.staffType,
+    name:      `${account.firstName} ${account.lastName}`,
+    role:      ROLES.STAFF,
+    scopes:    scopesForRole(ROLES.STAFF),
+    jti:       crypto.randomUUID(),
+  });
+
   return res.status(200).json({
-    captchaToken,
-    imageBase64: buildSvgCaptcha(code),
-    expiresInSeconds: 300,
-    _dev_code: process.env.NODE_ENV !== 'production' ? code : undefined
+    accessToken,
+    refreshToken: newRaw,
+    tokenType: 'Bearer',
+    expiresInSeconds: 900,
   });
 }
