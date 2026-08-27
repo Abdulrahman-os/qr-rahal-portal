@@ -8,7 +8,7 @@ export const TAGS = [
 export const ENDPOINTS = [
   /* ─── CAPTCHA ─── */
   {
-    method:"GET", path:"/api/captcha/generate", tag:"CAPTCHA",
+    method:"GET", path:"/api/captcha/generate", tag:"CAPTCHA", backend:"portal-mock",
     summary:"Generate CAPTCHA image",
     desc:"Returns a base64 CAPTCHA image and a single-use server token. Both must be submitted with any form requiring CAPTCHA validation. Token expires in 300 s.",
     auth:false,
@@ -17,7 +17,7 @@ export const ENDPOINTS = [
     example_response:{captchaToken:"cap_tok_7e8f9g",imageBase64:"data:image/png;base64,iVBORw0K...",expiresInSeconds:300}
   },
   {
-    method:"GET", path:"/api/captcha/refresh", tag:"CAPTCHA",
+    method:"GET", path:"/api/captcha/refresh", tag:"CAPTCHA", backend:"portal-mock",
     summary:"Refresh CAPTCHA image",
     desc:"Invalidates current token and issues a new image + token pair.",
     auth:false,
@@ -28,7 +28,7 @@ export const ENDPOINTS = [
 
   /* ─── AUTHENTICATION ─── */
   {
-    method:"POST", path:"/api/auth/login/qr-staff", tag:"Authentication",
+    method:"POST", path:"/api/auth/login/qr-staff", tag:"Authentication", backend:"live",
     summary:"QR Staff login (Former / QAA / QEEL)",
     desc:"Authenticates Former Staff, QAA, or QEEL using staff number + password + CAPTCHA. Returns pending session and triggers OTP step. Accounts must first be provisioned (POST /api/admin/staff/provision) and activated (POST /api/auth/activate) — no hardcoded demo accounts exist in this endpoint.",
     auth:false, star:false,
@@ -43,7 +43,7 @@ export const ENDPOINTS = [
     example_response:{pendingAuthSessionId:"sess_pending_abc123",nextStep:"OTP_REQUIRED",contactHint:{maskedMobile:"****7890",maskedEmail:"****@qatarairways.com.qa"}}
   },
   {
-    method:"POST", path:"/api/auth/login/oal", tag:"Authentication",
+    method:"POST", path:"/api/auth/login/oal", tag:"Authentication", backend:"live",
     summary:"Other Airlines Staff login",
     desc:"Authenticates OAL staff using 13-digit ticket number and last name. No pre-registration needed. Session scoped to that booking.",
     auth:false,
@@ -58,7 +58,7 @@ export const ENDPOINTS = [
     example_response:{accessToken:"eyJhbGciOiJSUzI1NiJ9...",tokenType:"Bearer",expiresInSeconds:3600,staffType:"OAL",displayName:"Ahmed Al-Rashidi"}
   },
   {
-    method:"POST", path:"/api/auth/otp/send", tag:"Authentication",
+    method:"POST", path:"/api/auth/otp/send", tag:"Authentication", backend:"live",
     summary:"Send OTP to registered contact",
     desc:"Dispatches a 6-digit OTP via SMS or email. Valid for 15 minutes.",
     auth:false,
@@ -71,7 +71,7 @@ export const ENDPOINTS = [
     example_response:{message:"OTP sent. Valid for 15 minutes.",maskedDestination:"****7890",expiresInSeconds:900}
   },
   {
-    method:"POST", path:"/api/auth/otp/verify", tag:"Authentication",
+    method:"POST", path:"/api/auth/otp/verify", tag:"Authentication", backend:"live",
     summary:"Verify OTP and complete login",
     desc:"Submits 6-digit OTP and fresh CAPTCHA. Returns full JWT session token on success.",
     auth:false,
@@ -86,7 +86,7 @@ export const ENDPOINTS = [
     example_response:{accessToken:"eyJhbGciOiJSUzI1NiJ9...",tokenType:"Bearer",expiresInSeconds:3600,staffNumber:"123456",displayName:"Ahmed Al-Rashidi"}
   },
   {
-    method:"POST", path:"/api/auth/security-detail/verify", tag:"Authentication",
+    method:"POST", path:"/api/auth/security-detail/verify", tag:"Authentication", backend:"live",
     summary:"Security detail verification (first-time / OTP skip)",
     desc:"First-time users verify identity via DOB + Passport Number. Returns session or forced-reset token.",
     auth:false,
@@ -102,7 +102,7 @@ export const ENDPOINTS = [
     example_response:{sessionToken:null,resetToken:"reset_tok_xyz",nextStep:"PASSWORD_CHANGE_REQUIRED"}
   },
   {
-    method:"POST", path:"/api/auth/token/refresh", tag:"Authentication",
+    method:"POST", path:"/api/auth/token/refresh", tag:"Authentication", backend:"live",
     summary:"Refresh access token",
     desc:"Exchanges a valid, unrevoked refresh token for a new short-lived access token, without requiring password + OTP again. Refresh tokens rotate on every use — the old one is revoked and a new one issued in the same response.",
     auth:false, params:[],
@@ -113,7 +113,7 @@ export const ENDPOINTS = [
     example_response:{accessToken:"eyJhbGciOiJSUzI1NiJ9...",refreshToken:"<new rotated token>",tokenType:"Bearer",expiresInSeconds:900}
   },
   {
-    method:"POST", path:"/api/auth/token/revoke", tag:"Authentication",
+    method:"POST", path:"/api/auth/token/revoke", tag:"Authentication", backend:"live",
     summary:"Revoke refresh token (production logout)",
     desc:"Revokes a refresh token server-side so it can no longer be exchanged for new access tokens. The already-issued access token remains valid until its own short expiry (max 15 min) — the accepted tradeoff of short-lived-access + revocable-refresh token design.",
     auth:false, params:[],
@@ -124,7 +124,7 @@ export const ENDPOINTS = [
     example_response:{message:"Logged out. Refresh token revoked."}
   },
   {
-    method:"POST", path:"/api/auth/activate", tag:"Authentication",
+    method:"POST", path:"/api/auth/activate", tag:"Authentication", backend:"live",
     summary:"Activate account & set first password",
     desc:"A staff member's first-ever interaction, reached via the activation link sent after provisioning. Re-verifies identity via date of birth + passport (defense in depth, proving possession of the link isn't enough on its own), then lets the staff member set their own password for the first time.",
     auth:false, params:[],
@@ -141,7 +141,7 @@ export const ENDPOINTS = [
 
   /* ─── ADMIN / PROVISIONING (separate trust boundary — see lib/security/adminAuth.js) ─── */
   {
-    method:"POST", path:"/api/admin/staff/provision", tag:"Authentication",
+    method:"POST", path:"/api/admin/staff/provision", tag:"Authentication", backend:"live",
     summary:"Provision new staff account (admin/HRIS only) ★",
     desc:"Creates a staff account BEFORE any login is possible — PENDING_ACTIVATION status, no password set. Callable only by an authorized internal system (HRIS feed, admin console) via the x-internal-api-key header, never by the public frontend. Field naming follows common HR-system conventions (IATA airline staff-travel programs typically source this from SAP SuccessFactors / Workday feeds).",
     auth:false, star:true,
@@ -167,7 +167,7 @@ export const ENDPOINTS = [
     example_response:{staffNumber:"778899",status:"PENDING_ACTIVATION",activationLink:"https://stafftravel.qatarairways.com.qa/activate?token=...",activationTokenExpiresAt:"2026-08-18T12:00:00Z",message:"Staff account provisioned. Deliver the activation link via a verified channel."}
   },
   {
-    method:"GET", path:"/api/admin/auth-check", tag:"Authentication",
+    method:"GET", path:"/api/admin/auth-check", tag:"Authentication", backend:"portal-mock",
     summary:"TEMP DIAGNOSTIC — confirm internal API key is configured correctly",
     desc:"Checks whether INTERNAL_PROVISIONING_API_KEY is set on the server and whether the key you provide below matches — never reveals either actual value, only booleans and lengths. Delete pages/api/admin/auth-check.js once you've confirmed the key works; this route has no place in a long-term deployment.",
     auth:false,
@@ -176,7 +176,7 @@ export const ENDPOINTS = [
     example_response:{serverHasKeyConfigured:true,headerWasSent:true,keysMatch:true,expectedKeyLength:44,providedKeyLength:44,diagnosis:"Match confirmed — this key is valid and should work on other admin endpoints."}
   },
   {
-    method:"GET", path:"/api/admin/npm-audit", tag:"Authentication",
+    method:"GET", path:"/api/admin/npm-audit", tag:"Authentication", backend:"portal-mock",
     summary:"TEMP DIAGNOSTIC — real npm audit output from the live server",
     desc:"Runs the actual npm audit --json on this deployed server (where node_modules and registry access genuinely exist) and returns a summarized list of real vulnerabilities: package name, severity, advisory info. Delete pages/api/admin/npm-audit.js once you've pulled this data — a route that shells out to npm should not stay in a long-term deployment.",
     auth:false,
@@ -185,7 +185,7 @@ export const ENDPOINTS = [
     example_response:{summary:{high:2,moderate:0,critical:0,total:2},vulnerabilities:[{package:"example-pkg",severity:"high",range:"<1.2.3",fixAvailable:true}]}
   },
   {
-    method:"POST", path:"/api/auth/logout", tag:"Authentication",
+    method:"POST", path:"/api/auth/logout", tag:"Authentication", backend:"portal-mock",
     summary:"Logout and invalidate session (legacy demo route)",
     desc:"Invalidates the current in-memory session token server-side, based on the Authorization header. Superseded by /api/auth/token/revoke for the production-track flow (RFC 7009-style, token passed in body) — kept here for the original mock login flow.",
     auth:true, params:[], body:null, fields:[],
@@ -194,7 +194,7 @@ export const ENDPOINTS = [
 
   /* ─── PASSWORD ─── */
   {
-    method:"POST", path:"/api/auth/password/forgot", tag:"Password",
+    method:"POST", path:"/api/auth/password/forgot", tag:"Password", backend:"portal-mock",
     summary:"Initiate forgot password flow",
     desc:"Starts password reset. Sends OTP if contact details exist; otherwise triggers security-detail form.",
     auth:false,
@@ -204,7 +204,7 @@ export const ENDPOINTS = [
     example_response:{pendingAuthSessionId:"sess_reset_abc",nextStep:"OTP_REQUIRED"}
   },
   {
-    method:"POST", path:"/api/auth/password/reset", tag:"Password",
+    method:"POST", path:"/api/auth/password/reset", tag:"Password", backend:"portal-mock",
     summary:"Set new password (post-verification)",
     desc:"Sets a new password after OTP or security-detail verification. Used for forgot-password and first-time forced change.",
     auth:false,
@@ -218,7 +218,7 @@ export const ENDPOINTS = [
     example_response:{message:"Password updated. Please login with your new password."}
   },
   {
-    method:"POST", path:"/api/profile/password/change", tag:"Password",
+    method:"POST", path:"/api/profile/password/change", tag:"Password", backend:"real-shaped",
     summary:"Change password (authenticated session)",
     desc:"Change password in-session via My Profile.",
     auth:true,
@@ -234,14 +234,14 @@ export const ENDPOINTS = [
 
   /* ─── PROFILE ─── */
   {
-    method:"GET", path:"/api/profile", tag:"Profile",
+    method:"GET", path:"/api/profile", tag:"Profile", backend:"real-shaped",
     summary:"Get staff profile",
     desc:"Returns full profile: contact details, passport records, family member data.",
     auth:true, params:[], body:null, fields:[],
     example_response:{staffNumber:"123456",firstName:"Ahmed",lastName:"Al-Rashidi",staffType:"FORMER_STAFF",email:"ahmed@qatarairways.com.qa",maskedMobile:"****7890",passports:[{passportNumber:"P12345678",nationality:"QAT",expiryDate:"2030-01-01"}]}
   },
   {
-    method:"PUT", path:"/api/profile/contact/mobile", tag:"Profile",
+    method:"PUT", path:"/api/profile/contact/mobile", tag:"Profile", backend:"real-shaped",
     summary:"Update mobile number",
     desc:"Updates registered mobile. Requires OTP sent to current registered email.",
     auth:true,
@@ -254,7 +254,7 @@ export const ENDPOINTS = [
     example_response:{message:"Mobile number updated successfully."}
   },
   {
-    method:"PUT", path:"/api/profile/contact/email", tag:"Profile",
+    method:"PUT", path:"/api/profile/contact/email", tag:"Profile", backend:"real-shaped",
     summary:"Update email address",
     desc:"Updates registered email. Requires OTP sent to current registered mobile.",
     auth:true,
@@ -267,7 +267,7 @@ export const ENDPOINTS = [
     example_response:{message:"Email address updated successfully."}
   },
   {
-    method:"PUT", path:"/api/profile/passport", tag:"Profile",
+    method:"PUT", path:"/api/profile/passport", tag:"Profile", backend:"real-shaped",
     summary:"Update passport details",
     desc:"Update passport for self or immediate family (SPOUSE, CHILD, PARENT). No OTP required.",
     auth:true,
@@ -286,14 +286,14 @@ export const ENDPOINTS = [
 
   /* ─── ENTITLEMENTS ─── */
   {
-    method:"GET", path:"/api/entitlements", tag:"Entitlements",
+    method:"GET", path:"/api/entitlements", tag:"Entitlements", backend:"real-shaped",
     summary:"Get staff travel entitlements",
     desc:"Returns eligible ticket types, annual allocation (used/remaining), passenger count, and travel benefit grade.",
     auth:true, params:[], body:null, fields:[],
     example_response:{staffNumber:"123456",eligibleTicketTypes:["ID90","ID50","ZED","REBATE"],annualAllocation:{total:12,used:4,remaining:8},eligiblePassengerCount:3,travelBenefitGrade:"GRADE_D"}
   },
   {
-    method:"GET", path:"/api/entitlements/passengers", tag:"Entitlements",
+    method:"GET", path:"/api/entitlements/passengers", tag:"Entitlements", backend:"real-shaped",
     summary:"List eligible passengers",
     desc:"Returns self and registered dependents eligible for staff travel booking.",
     auth:true, params:[], body:null, fields:[],
@@ -302,7 +302,7 @@ export const ENDPOINTS = [
 
   /* ─── FLIGHT SEARCH ─── */
   {
-    method:"POST", path:"/api/flights/search", tag:"Flight Search",
+    method:"POST", path:"/api/flights/search", tag:"Flight Search", backend:"real-shaped",
     summary:"Search available staff flights",
     desc:"Searches staff-eligible QR and partner flight inventory. Returns options with staff seat counts and fare breakdowns. Supports ONE_WAY, RETURN, OPEN_JAW.",
     auth:true,
@@ -321,7 +321,7 @@ export const ENDPOINTS = [
     example_response:{searchId:"srch_abc123",outboundOptions:[{flightOptionId:"FLT_OPT_QR007_20260915_Y",flightNumber:"QR007",origin:"DOH",destination:"LHR",departureDateTime:"2026-09-15T08:30:00Z",arrivalDateTime:"2026-09-15T14:00:00Z",duration:"PT5H30M",aircraft:"B777",cabin:"ECONOMY",bookingClass:"YIF",staffSeatsAvailable:4,fareSummary:{ticketType:"ID90",baseFare:45.00,taxes:78.50,totalAmount:123.50,currency:"QAR",fareBasisCode:"YIF90",discountPercentage:90}}],returnOptions:[{flightOptionId:"FLT_OPT_QR008_20260930_Y",flightNumber:"QR008",origin:"LHR",destination:"DOH",departureDateTime:"2026-09-30T14:00:00Z",staffSeatsAvailable:7}]}
   },
   {
-    method:"GET", path:"/api/flights/availability/:flightNumber/:date", tag:"Flight Search",
+    method:"GET", path:"/api/flights/availability/:flightNumber/:date", tag:"Flight Search", backend:"real-shaped",
     summary:"Real-time seat availability for a flight",
     desc:"Returns seat availability by class for a specific QR flight. Use before listing to gauge standby probability.",
     auth:true,
@@ -336,7 +336,7 @@ export const ENDPOINTS = [
     example_response:{flightNumber:"QR007",date:"2026-09-15",origin:"DOH",destination:"LHR",operatingStatus:"ON_TIME",classesByAvailability:[{bookingClass:"Y",cabin:"ECONOMY",totalSeats:315,availableSeats:12,staffEligible:true},{bookingClass:"C",cabin:"BUSINESS",totalSeats:42,availableSeats:2,staffEligible:true}]}
   },
   {
-    method:"POST", path:"/api/flights/fares", tag:"Flight Search",
+    method:"POST", path:"/api/flights/fares", tag:"Flight Search", backend:"real-shaped",
     summary:"Check staff fares for a route",
     desc:"Returns staff fare types and amounts for a given O&D pair by ticket type and cabin.",
     auth:true,
@@ -353,7 +353,7 @@ export const ENDPOINTS = [
 
   /* ─── BOOKING ─── */
   {
-    method:"POST", path:"/api/bookings", tag:"Booking", star:true,
+    method:"POST", path:"/api/bookings", tag:"Booking", backend:"real-shaped", star:true,
     summary:"Make booking & issue staff ticket ★",
     desc:"CORE TICKET ISSUANCE. Creates booking, generates PNR, processes payment via QR gateway, issues 13-digit e-ticket (157-XXXXXXXXXX). Ticket types: ID90 (90% off standby) · ID50 (50% off confirmed) · ID00 (duty/free) · ZED (interline) · REBATE (leisure).",
     auth:true,
@@ -374,7 +374,7 @@ export const ENDPOINTS = [
 
   /* ─── MY BOOKINGS ─── */
   {
-    method:"GET", path:"/api/bookings/list", tag:"My Bookings",
+    method:"GET", path:"/api/bookings/list", tag:"My Bookings", backend:"real-shaped",
     summary:"List all staff bookings",
     desc:"Paginated list of all bookings. Filter by status: UPCOMING, PAST, ALL, REFUNDED, CANCELLED.",
     auth:true,
@@ -392,7 +392,7 @@ export const ENDPOINTS = [
     example_response:{total:8,page:1,pageSize:20,bookings:[{pnr:"B8XYZ6",status:"CONFIRMED",origin:"DOH",destination:"LHR",departureDate:"2026-09-15",ticketType:"ID90",passengerCount:1},{pnr:"A3MNP1",status:"FLOWN",origin:"DOH",destination:"CMB",departureDate:"2026-07-01",ticketType:"ID50",passengerCount:1}]}
   },
   {
-    method:"GET", path:"/api/bookings/:pnr", tag:"My Bookings",
+    method:"GET", path:"/api/bookings/:pnr", tag:"My Bookings", backend:"real-shaped",
     summary:"Retrieve booking by PNR",
     desc:"Full booking details: passengers, itinerary, ticket numbers, coupon status, fare, and payment summary.",
     auth:true,
@@ -404,7 +404,7 @@ export const ENDPOINTS = [
 
   /* ─── LISTING ─── */
   {
-    method:"POST", path:"/api/listings", tag:"Listing (Standby)",
+    method:"POST", path:"/api/listings", tag:"Listing (Standby)", backend:"real-shaped",
     summary:"Add standby listing to a flight",
     desc:"Lists passengers on a flight for standby travel. Priority codes: S1 (duty confirmed) · S2 (duty standby) · R1 (rebate confirmed) · R2 (rebate standby) · N2 (OAL standby).",
     auth:true,
@@ -421,7 +421,7 @@ export const ENDPOINTS = [
     example_response:{listingId:"LST_QR007_20260915_001",standbyPosition:3,status:"LISTED",message:"Listed on QR007 15-SEP-2026. Standby position: 3 of 9."}
   },
   {
-    method:"GET", path:"/api/listings/:listingId", tag:"Listing (Standby)",
+    method:"GET", path:"/api/listings/:listingId", tag:"Listing (Standby)", backend:"real-shaped",
     summary:"Get listing status",
     desc:"Returns standby position, total count, available seats, and confirmation status.",
     auth:true,
@@ -431,7 +431,7 @@ export const ENDPOINTS = [
     example_response:{listingId:"LST_QR007_20260915_001",flightNumber:"QR007",flightDate:"2026-09-15",standbyPosition:3,totalStandbyCount:9,seatsAvailable:5,status:"LISTED",updatedAt:"2026-08-08T13:30:00Z"}
   },
   {
-    method:"DELETE", path:"/api/listings/:listingId", tag:"Listing (Standby)",
+    method:"DELETE", path:"/api/listings/:listingId", tag:"Listing (Standby)", backend:"real-shaped",
     summary:"Remove standby listing",
     desc:"Cancels an active standby listing.",
     auth:true,
@@ -443,7 +443,7 @@ export const ENDPOINTS = [
 
   /* ─── CHANGE BOOKING ─── */
   {
-    method:"POST", path:"/api/bookings/:pnr/change/search", tag:"Change Booking",
+    method:"POST", path:"/api/bookings/:pnr/change/search", tag:"Change Booking", backend:"real-shaped",
     summary:"Search flights for rebooking",
     desc:"Returns staff-eligible flight options for new dates/sector. Must be called before confirming a change.",
     auth:true,
@@ -458,7 +458,7 @@ export const ENDPOINTS = [
     example_response:{searchId:"srch_chg_456",outboundOptions:[{flightOptionId:"FLT_OPT_QR007_20260922_Y",flightNumber:"QR007",departureDateTime:"2026-09-22T08:30:00Z",staffSeatsAvailable:6,fareSummary:{totalAmount:123.50,currency:"QAR"}}]}
   },
   {
-    method:"POST", path:"/api/bookings/:pnr/change", tag:"Change Booking", star:true,
+    method:"POST", path:"/api/bookings/:pnr/change", tag:"Change Booking", backend:"real-shaped", star:true,
     summary:"Change booking dates or sector ★",
     desc:"Modifies dates, sector, or both. Fare difference charged/refunded automatically. Steps: (1) GET /api/bookings/:pnr → (2) POST /api/bookings/:pnr/change/search → (3) POST this endpoint.",
     auth:true,
@@ -476,7 +476,7 @@ export const ENDPOINTS = [
 
   /* ─── REFUND ─── */
   {
-    method:"GET", path:"/api/bookings/:pnr/refund/preview", tag:"Refund",
+    method:"GET", path:"/api/bookings/:pnr/refund/preview", tag:"Refund", backend:"real-shaped",
     summary:"Preview refund amount",
     desc:"Returns refundable amount, penalties, and eligibility type (FULL_VOID / PARTIAL_REFUND / NON_REFUNDABLE) before committing.",
     auth:true,
@@ -486,7 +486,7 @@ export const ENDPOINTS = [
     example_response:{pnr:"B8XYZ6",tickets:[{ticketNumber:"157-1234567890",sector:"DOH-LHR",refundableAmount:90.00,penaltyAmount:33.50,currency:"QAR"}],totalRefundableAmount:90.00,currency:"QAR",refundEligibility:"PARTIAL_REFUND"}
   },
   {
-    method:"POST", path:"/api/bookings/:pnr/refund", tag:"Refund", star:true,
+    method:"POST", path:"/api/bookings/:pnr/refund", tag:"Refund", backend:"real-shaped", star:true,
     summary:"Confirm ticket refund / void ★",
     desc:"Processes full void (same-day, pre-departure) or partial refund (post-departure / used coupon). Penalties applied per fare rules.",
     auth:true,
@@ -502,7 +502,7 @@ export const ENDPOINTS = [
 
   /* ─── PRINT ─── */
   {
-    method:"GET", path:"/api/bookings/:pnr/itinerary", tag:"Print & Itinerary",
+    method:"GET", path:"/api/bookings/:pnr/itinerary", tag:"Print & Itinerary", backend:"real-shaped",
     summary:"Get itinerary details (JSON)",
     desc:"Full structured itinerary: segments, passenger names, ticket numbers, fare basis codes, coupon status, meal codes, seat numbers.",
     auth:true,
@@ -512,7 +512,7 @@ export const ENDPOINTS = [
     example_response:{pnr:"B8XYZ6",passengers:[{passengerName:"ALRASHIDI/AHMED MR",ticketNumber:"157-1234567890",ticketType:"ID90",fareBasisCode:"YIF90",baggageAllowance:"1PC"}],segments:[{segmentNumber:1,flightNumber:"QR007",aircraft:"B777",origin:{iataCode:"DOH",airportName:"Hamad International Airport",terminal:"D",scheduledDeparture:"2026-09-15T08:30:00+03:00"},destination:{iataCode:"LHR",airportName:"Heathrow Airport",terminal:"4",scheduledArrival:"2026-09-15T14:00:00+01:00"},cabin:"ECONOMY",bookingClass:"YIF",couponStatus:"OPEN",mealCode:"HNML"}]}
   },
   {
-    method:"GET", path:"/api/bookings/:pnr/eticket/print", tag:"Print & Itinerary", star:true,
+    method:"GET", path:"/api/bookings/:pnr/eticket/print", tag:"Print & Itinerary", backend:"real-shaped", star:true,
     summary:"Download e-ticket PDF ★",
     desc:"Returns a print-ready PDF or pre-signed URL. PDF includes: passenger name + staff ID, 13-digit e-ticket (157-XXXXXXXXXX), PNR, full itinerary, fare class + basis code, ticket type, baggage allowance, booking conditions, QR barcode for airport scanning. Send Accept: application/pdf for binary or Accept: application/json for URL.",
     auth:true,
@@ -528,7 +528,7 @@ export const ENDPOINTS = [
     example_response:{downloadUrl:"https://stafftravel.qatarairways.com.qa/api/v1/files/eticket_QR_B8XYZ6.pdf",expiresAt:"2026-09-15T14:30:00Z",fileSizeKb:245,contentType:"application/pdf"}
   },
   {
-    method:"GET", path:"/api/bookings/:pnr/itinerary/print", tag:"Print & Itinerary",
+    method:"GET", path:"/api/bookings/:pnr/itinerary/print", tag:"Print & Itinerary", backend:"real-shaped",
     summary:"Download itinerary receipt PDF",
     desc:"Returns a 1-page printer-friendly itinerary receipt for trip planning and airport presentation.",
     auth:true,
@@ -538,7 +538,7 @@ export const ENDPOINTS = [
     example_response:{downloadUrl:"https://stafftravel.qatarairways.com.qa/api/v1/files/itinerary_QR_B8XYZ6.pdf",expiresAt:"2026-09-15T14:30:00Z",fileSizeKb:78}
   },
   {
-    method:"POST", path:"/api/bookings/:pnr/eticket/resend", tag:"Print & Itinerary",
+    method:"POST", path:"/api/bookings/:pnr/eticket/resend", tag:"Print & Itinerary", backend:"real-shaped",
     summary:"Resend e-ticket to email",
     desc:"Sends the e-ticket confirmation email to the registered address or an override.",
     auth:true,
