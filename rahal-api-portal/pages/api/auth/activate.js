@@ -1,22 +1,14 @@
 /**
  * POST /api/auth/activate
  * ─────────────────────────────────────────────────────────────────────────
- * The staff member's first-ever interaction with the system. They arrive
- * here via the activation link sent after provisioning. This endpoint:
- *
- *   1. Verifies the activation token (hash lookup, expiry, single-use)
- *   2. Re-verifies identity via DOB + passport (defense in depth — proves
- *      the person clicking the link is actually the staff member, not
- *      just someone who intercepted the email)
- *   3. Lets them set their own password (never assigned by an admin)
- *   4. Flips the account to ACTIVE
- *
- * This endpoint is public (no Bearer token required) by necessity — the
- * user has no session yet. Its security comes entirely from possession
- * of the single-use token + knowledge of DOB/passport, both required.
+ * Staff member's first-ever interaction — arrives via the activation link.
+ * 1. Verifies the activation token (portal-local, single-use, 72-hour TTL)
+ * 2. Re-verifies identity via DOB + passport against RAHAL frontend record
+ * 3. Sets password and flips account to ACTIVE on the RAHAL frontend
  * ─────────────────────────────────────────────────────────────────────────
  */
 const storage = require('../../../lib/security/storage');
+const rahalStaff = require('../../../lib/rahalStaffClient');
 const { sha256 } = require('../../../lib/security/tokens');
 const { hashPassword, isPasswordStrongEnough } = require('../../../lib/security/password');
 const { checkRateLimit, getClientIp } = require('../../../lib/security/rateLimit');
@@ -44,20 +36,26 @@ export default async function handler(req, res) {
     return res.status(422).json({ code: 'PASSWORD_TOO_WEAK', message: 'Password must be at least 8 characters and include uppercase, lowercase, a digit, and a special character.' });
   }
 
+  const invalidToken = () => res.status(401).json({
+    code: 'ACTIVATION_TOKEN_INVALID',
+    message: 'This activation link is invalid or has expired. Contact HR/IT to request a new one.',
+  });
+
   const tokenHash = sha256(token);
   const tokenRecord = await storage.getActivationToken(tokenHash);
+  if (!tokenRecord)           return invalidToken();
+  if (tokenRecord.usedAt)     return invalidToken();
+  if (Date.now() > tokenRecord.expiresAt) return invalidToken();
 
-  // Deliberately identical error for "not found", "expired", and "used" —
-  // don't help an attacker distinguish a guessed token from a real
-  // expired one.
-  const invalidTokenResponse = () => res.status(401).json({ code: 'ACTIVATION_TOKEN_INVALID', message: 'This activation link is invalid or has expired. Contact HR/IT to request a new one.' });
+  // ── Fetch account from RAHAL frontend ──
+  let account;
+  try {
+    account = await rahalStaff.getStaffAccount(tokenRecord.staffNumber);
+  } catch (err) {
+    return res.status(502).json({ code: 'RAHAL_FRONTEND_ERROR', message: `Could not fetch account: ${err.message}` });
+  }
+  if (!account) return invalidToken();
 
-  if (!tokenRecord) return invalidTokenResponse();
-  if (tokenRecord.usedAt) return invalidTokenResponse();
-  if (Date.now() > tokenRecord.expiresAt) return invalidTokenResponse();
-
-  const account = await storage.getStaffAccount(tokenRecord.staffNumber);
-  if (!account) return invalidTokenResponse();
   if (account.status !== 'PENDING_ACTIVATION') {
     return res.status(409).json({ code: 'ALREADY_ACTIVATED', message: 'This account has already been activated. Use the login page instead.' });
   }
@@ -67,13 +65,18 @@ export default async function handler(req, res) {
     return res.status(401).json({ code: 'IDENTITY_VERIFICATION_FAILED', message: 'Date of birth or passport number does not match our records.' });
   }
 
-  // ── Set password, activate account ──
+  // ── Set password, activate on RAHAL frontend ──
   const passwordHash = await hashPassword(newPassword);
-  await storage.updateStaffAccount(account.staffNumber, {
-    passwordHash,
-    status: 'ACTIVE',
-    activatedAt: Date.now(),
-  });
+  try {
+    await rahalStaff.updateStaffAccount(account.staffNumber, {
+      passwordHash,
+      status: 'ACTIVE',
+      activatedAt: Date.now(),
+    });
+  } catch (err) {
+    return res.status(502).json({ code: 'RAHAL_FRONTEND_ERROR', message: `Failed to activate account: ${err.message}` });
+  }
+
   await storage.markActivationTokenUsed(tokenHash);
   await storage.invalidateActivationTokensForStaff(account.staffNumber);
 
