@@ -40,10 +40,12 @@ function StatusBadge({ code }) {
 }
 
 const BACKEND_STYLE = {
-  'mock':             { label:'MOCK DATA',       bg:'#0D2035', color:'#4A9EFF', border:'#1A3A5C', title:'Backed by an in-memory mock store. No real Qatar Airways system involved.' },
-  'real-shaped':       { label:'REAL-SHAPED · INACTIVE', bg:'#2A1A00', color:'#F0A030', border:'#4A3000', title:'Shaped to call the real RAHAL backend via lib/rahalClient.js, but not connected — no real credentials configured, and not wired into normal app flow.' },
-  'demo-pipeline':     { label:'LIVE DEMO',       bg:'#0A1A00', color:'#6EE880', border:'#1A5A00', title:'Actually executes the sign/encrypt/verify pipeline for real, against a local mock counterparty — no real QR system involved.' },
+  'live':              { label:'LIVE · RAHAL',    bg:'#0A1A00', color:'#2ECC7A', border:'#1A5A00', title:'Connected to the RAHAL frontend (stafftravel.qatarairways.com.qa). Real staff data.' },
+  'portal-mock':       { label:'PORTAL LOCAL',    bg:'#1A1A2E', color:'#8888CC', border:'#2A2A4A', title:'Handled entirely within this portal — no RAHAL system involved (CAPTCHA, session tokens, etc.).' },
+  'real-shaped':       { label:'RAHAL BACKEND',   bg:'#2A1A00', color:'#F0A030', border:'#4A3000', title:'Routes through lib/rahalClient.js to the real RAHAL backend. Requires valid API credentials in env vars.' },
+  'demo-pipeline':     { label:'LIVE DEMO',       bg:'#0A1A00', color:'#6EE880', border:'#1A5A00', title:'Executes the sign/encrypt/verify pipeline against a local mock counterparty — no real QR system involved.' },
   'mock-counterparty': { label:'LOCAL MOCK ONLY', bg:'#1A0D30', color:'#C89FFF', border:'#3A1A5C', title:'Stands in for RAHAL entirely within this deployment. Not a real backend.' },
+  'mock':              { label:'MOCK DATA',       bg:'#0D2035', color:'#4A9EFF', border:'#1A3A5C', title:'Backed by an in-memory mock store. No real Qatar Airways system involved.' },
 };
 function BackendBadge({ backend = 'mock' }) {
   const s = BACKEND_STYLE[backend] || BACKEND_STYLE.mock;
@@ -519,7 +521,7 @@ export default function Home() {
           </div>
           <div style={{ display:'flex', gap:8, marginBottom:12, flexWrap:'wrap', alignItems:'center' }}>
             <span style={{fontSize:10,color:'#6B7A99'}}>Backend:</span>
-            <BackendBadge backend="mock" /><BackendBadge backend="real-shaped" /><BackendBadge backend="demo-pipeline" /><BackendBadge backend="mock-counterparty" />
+            <BackendBadge backend="live" /><BackendBadge backend="portal-mock" /><BackendBadge backend="real-shaped" /><BackendBadge backend="demo-pipeline" /><BackendBadge backend="mock-counterparty" />
           </div>
 
           {/* Count */}
